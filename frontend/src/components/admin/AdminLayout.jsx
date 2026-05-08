@@ -146,6 +146,7 @@ export default function AdminLayout({ activeSection, setActiveSection, currentUs
     reports: ChartBarIcon,
     finance: DollarIcon,
     settings: CogIcon,
+    pos: DollarIcon,
   };
 
   const toggleSidebar = () => {

@@ -25,6 +25,40 @@ class VentaCreateInputSerializer(serializers.Serializer):
         return value
 
 
+class POSItemInputSerializer(serializers.Serializer):
+    producto_id = serializers.IntegerField(min_value=1)
+    cantidad = serializers.IntegerField(min_value=1)
+    precio_unitario = serializers.DecimalField(max_digits=12, decimal_places=2, required=False)
+
+
+class POSClienteInputSerializer(serializers.Serializer):
+    nombres = serializers.CharField(max_length=150)
+    apellidos = serializers.CharField(max_length=150, required=False, allow_blank=True)
+    email = serializers.EmailField(required=False, allow_blank=True)
+    telefono = serializers.CharField(max_length=30, required=False, allow_blank=True)
+    ci_nit = serializers.CharField(max_length=30, required=False, allow_blank=True)
+
+
+class POSVentaInputSerializer(serializers.Serializer):
+    items = POSItemInputSerializer(many=True, min_length=1)
+    cliente_id = serializers.IntegerField(min_value=1, required=False)
+    cliente_data = POSClienteInputSerializer(required=False)
+    estado = serializers.ChoiceField(choices=Venta.ESTADO_CHOICES, required=False, default="pagada")
+    descuento = serializers.DecimalField(max_digits=12, decimal_places=2, required=False, default=0)
+    impuesto = serializers.DecimalField(max_digits=12, decimal_places=2, required=False, default=0)
+    observacion = serializers.CharField(required=False, allow_blank=True)
+
+    def validate(self, attrs):
+        if not attrs.get("cliente_id") and not attrs.get("cliente_data"):
+            raise serializers.ValidationError("Debe proporcionar cliente_id o cliente_data.")
+        if attrs.get("cliente_id"):
+            try:
+                Cliente.objects.get(id=attrs["cliente_id"], estado=True)
+            except Cliente.DoesNotExist:
+                raise serializers.ValidationError({"cliente_id": "Cliente no encontrado o inactivo."})
+        return attrs
+
+
 class DetalleVentaSerializer(serializers.ModelSerializer):
     producto_nombre = serializers.ReadOnlyField(source="producto.nombre_comercial")
     producto_sku = serializers.ReadOnlyField(source="producto.sku")

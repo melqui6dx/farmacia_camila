@@ -3,6 +3,7 @@ import HomePage from "./pages/HomePage";
 import { AuthProvider } from "./context/AuthContext";
 import ProtectedRoute from "./components/routing/ProtectedRoute";
 import AdminRoute from "./components/routing/AdminRoute";
+import POSRoute from "./components/routing/POSRoute";
 import PageLoader from "./components/routing/PageLoader";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 
@@ -22,6 +23,7 @@ const RegisterPage = lazy(() => import("./pages/auth/RegisterPage"));
 const ForgotPasswordPage = lazy(() => import("./pages/auth/ForgotPasswordPage"));
 const ResetPasswordPage = lazy(() => import("./pages/auth/ResetPasswordPage"));
 const VerifyEmailPage = lazy(() => import("./pages/auth/VerifyEmailPage"));
+const POSPage = lazy(() => import("./pages/pos/POSPage"));
 
 function App() {
   return (
@@ -51,6 +53,10 @@ function App() {
           <Route path="/admin/laboratorios" element={<AdminLaboratariosPage />} />
           <Route path="/admin/clientes" element={<AdminClientesPage />} />
           <Route path="/admin/bitacora" element={<AdminBitacoraPage />} />
+        </Route>
+
+        <Route element={<POSRoute />}>
+          <Route path="/pos" element={<POSPage />} />
         </Route>
 
         <Route path="*" element={<Navigate to="/" replace />} />
