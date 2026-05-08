@@ -2,7 +2,7 @@
 from rest_framework.decorators import action
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.response import Response
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from django.shortcuts import get_object_or_404
 from django.db.models import F, Sum
 
@@ -35,6 +35,11 @@ class CategoriaViewSet(viewsets.ModelViewSet):
     filter_backends = [filters.SearchFilter, filters.OrderingFilter]
     search_fields = ["nombre", "descripcion"]
     ordering_fields = ["nombre", "created_at"]
+
+    def get_permissions(self):
+        if self.action in ["list", "retrieve"]:
+            return [AllowAny()]
+        return [IsAuthenticated()]
 
     def get_queryset(self):
         queryset = super().get_queryset()
@@ -88,6 +93,11 @@ class SubcategoriaViewSet(viewsets.ModelViewSet):
     filter_backends = [filters.SearchFilter, filters.OrderingFilter]
     search_fields = ["nombre", "descripcion"]
 
+    def get_permissions(self):
+        if self.action in ["list", "retrieve"]:
+            return [AllowAny()]
+        return [IsAuthenticated()]
+
     def get_queryset(self):
         queryset = super().get_queryset()
         categoria_id = self.request.query_params.get("categoria")
@@ -140,6 +150,11 @@ class LaboratorioViewSet(viewsets.ModelViewSet):
     search_fields = ["nombre", "pais", "contacto_representante"]
     ordering_fields = ["nombre", "created_at"]
 
+    def get_permissions(self):
+        if self.action in ["list", "retrieve"]:
+            return [AllowAny()]
+        return [IsAuthenticated()]
+
     def perform_create(self, serializer):
         instance = serializer.save()
         log_system_event(
@@ -189,6 +204,11 @@ class ProductoViewSet(viewsets.ModelViewSet):
     filter_backends = [filters.SearchFilter, filters.OrderingFilter]
     search_fields = ["sku", "nombre_comercial", "nombre_generico"]
     ordering_fields = ["sku", "nombre_comercial", "precio_venta", "created_at"]
+
+    def get_permissions(self):
+        if self.action in ["list", "retrieve", "inventario", "resumen_stock", "stock_bajo", "sin_stock"]:
+            return [AllowAny()]
+        return [IsAuthenticated()]
 
     def get_queryset(self):
         queryset = super().get_queryset().select_related("categoria", "laboratorio", "subcategoria", "inventario")

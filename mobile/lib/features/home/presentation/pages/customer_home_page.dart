@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-
+import '../../../cart/customer_cart_tab.dart'; 
+import '../../../catalog/customer_catalog_tab.dart';
 import '../../../../core/auth/auth_session_manager.dart';
 import '../../../auth/data/models/auth_user.dart';
 import '../../../auth/presentation/pages/login_page.dart';
@@ -14,70 +15,114 @@ class CustomerHomePage extends StatefulWidget {
 
 class _CustomerHomePageState extends State<CustomerHomePage> {
   int _selectedIndex = 0;
+  int? _clienteId;
+  String? _accessToken; 
+  bool _isSyncing = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _autoDiscoverCliente();
+  }
+
+  Future<void> _autoDiscoverCliente() async {
+    try {
+      final session = await AuthSessionManager.restoreClientSession();
+
+      if (session == null) {
+        if (!mounted) return;
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(builder: (_) => const LoginPage()),
+          (_) => false,
+        );
+        return;
+      }
+
+      _accessToken = session.accessToken;
+      print("✅ Usuario autenticado: ${session.user.email}");
+    } catch (e) {
+      print("🚨 Error de conexión: $e");
+    } finally {
+      if (mounted) setState(() => _isSyncing = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
+    if (_isSyncing) {
+      return const Scaffold(
+        backgroundColor: Color(0xFFF8FAF9),
+        body: Center(child: CircularProgressIndicator(color: Color(0xFF006A5E))),
+      );
+    }
+
     final pages = [
       const _HomeOverviewTab(),
-      const _PlaceholderTab(
-        title: 'Catalogo',
-        subtitle: 'Pronto mostraremos productos y filtros.',
-        icon: Icons.local_pharmacy_outlined,
-      ),
-      const _PlaceholderTab(
-        title: 'Carrito',
-        subtitle: 'Tu resumen de compra aparecera aqui.',
-        icon: Icons.shopping_cart_outlined,
-      ),
+      CustomerCatalogTab(clienteId: _clienteId, accessToken: _accessToken),
+      const CartTab(), 
       const _ProfileTab(),
     ];
 
     return Scaffold(
+      backgroundColor: const Color(0xFFF8FAF9),
       appBar: AppBar(
         title: Text(
           'Farmacia Bibosi',
-          style: GoogleFonts.manrope(fontWeight: FontWeight.w800, fontSize: 22),
+          style: GoogleFonts.manrope(fontWeight: FontWeight.w800, fontSize: 22, color: const Color(0xFF191C1C)),
         ),
         centerTitle: false,
         backgroundColor: const Color(0xFFF8FAF9),
         elevation: 0,
         actions: [
-          IconButton(
-            onPressed: () {},
-            icon: const Icon(Icons.notifications_none_outlined),
+          Container(
+            margin: const EdgeInsets.only(right: 16),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              shape: BoxShape.circle,
+              border: Border.all(color: const Color(0xFFE0E3E1)),
+            ),
+            child: IconButton(
+              icon: const Icon(Icons.notifications_active_outlined, color: Color(0xFF191C1C), size: 22),
+              onPressed: () {},
+            ),
           ),
         ],
       ),
       body: AnimatedSwitcher(
-        duration: const Duration(milliseconds: 250),
+        duration: const Duration(milliseconds: 300),
+        transitionBuilder: (Widget child, Animation<double> animation) {
+          return FadeTransition(opacity: animation, child: child);
+        },
         child: pages[_selectedIndex],
       ),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _selectedIndex,
-        onDestinationSelected: (index) =>
-            setState(() => _selectedIndex = index),
+        onDestinationSelected: (index) => setState(() => _selectedIndex = index),
         backgroundColor: Colors.white,
-        indicatorColor: const Color(0x268BF1E6),
-        destinations: const [
+        elevation: 10,
+        shadowColor: Colors.black.withOpacity(0.1),
+        indicatorColor: const Color(0xFFEAF8F4),
+        labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
+        destinations: [
           NavigationDestination(
-            icon: Icon(Icons.home_outlined),
-            selectedIcon: Icon(Icons.home),
-            label: 'Inicio',
+            icon: const Icon(Icons.space_dashboard_outlined, color: Color(0xFF3E4946)), 
+            selectedIcon: const Icon(Icons.space_dashboard_rounded, color: Color(0xFF006A5E)), 
+            label: 'Inicio'
           ),
           NavigationDestination(
-            icon: Icon(Icons.local_pharmacy_outlined),
-            selectedIcon: Icon(Icons.local_pharmacy),
-            label: 'Catalogo',
+            icon: const Icon(Icons.medical_services_outlined, color: Color(0xFF3E4946)), 
+            selectedIcon: const Icon(Icons.medical_services_rounded, color: Color(0xFF006A5E)), 
+            label: 'Catálogo'
           ),
           NavigationDestination(
-            icon: Icon(Icons.shopping_cart_outlined),
-            selectedIcon: Icon(Icons.shopping_cart),
-            label: 'Carrito',
+            icon: const Icon(Icons.shopping_bag_outlined, color: Color(0xFF3E4946)), 
+            selectedIcon: const Icon(Icons.shopping_bag_rounded, color: Color(0xFF006A5E)), 
+            label: 'Carrito'
           ),
           NavigationDestination(
-            icon: Icon(Icons.person_outline),
-            selectedIcon: Icon(Icons.person),
-            label: 'Perfil',
+            icon: const Icon(Icons.person_outline, color: Color(0xFF3E4946)), 
+            selectedIcon: const Icon(Icons.person_rounded, color: Color(0xFF006A5E)), 
+            label: 'Perfil'
           ),
         ],
       ),
@@ -127,7 +172,7 @@ class _ProfileTabState extends State<_ProfileTab> {
   @override
   Widget build(BuildContext context) {
     if (_loading) {
-      return const Center(child: CircularProgressIndicator());
+      return const Center(child: CircularProgressIndicator(color: Color(0xFF006A5E)));
     }
 
     return Center(
@@ -135,65 +180,78 @@ class _ProfileTabState extends State<_ProfileTab> {
         padding: const EdgeInsets.all(24),
         child: Container(
           width: 460,
-          padding: const EdgeInsets.all(24),
+          padding: const EdgeInsets.all(32),
           decoration: BoxDecoration(
             color: Colors.white,
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: const Color(0x1ABDC9C5)),
+            borderRadius: BorderRadius.circular(24),
+            boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 24, offset: const Offset(0, 8))],
+            border: Border.all(color: const Color(0xFFF0F2F1)),
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const CircleAvatar(
-                radius: 34,
-                backgroundColor: Color(0x1A8BF1E6),
-                child: Icon(Icons.person, size: 36, color: Color(0xFF006A5E)),
+              Container(
+                padding: const EdgeInsets.all(4),
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(color: const Color(0xFFEAF8F4), width: 4),
+                ),
+                child: const CircleAvatar(
+                  radius: 40,
+                  backgroundColor: Color(0xFFF0F2F1),
+                  child: Icon(Icons.person_rounded, size: 45, color: Color(0xFF006A5E)),
+                ),
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 16),
               Text(
                 _user?.fullName ?? 'Cliente',
                 style: GoogleFonts.manrope(
-                  fontSize: 26,
+                  fontSize: 24,
                   fontWeight: FontWeight.w800,
                   color: const Color(0xFF191C1C),
                 ),
               ),
-              const SizedBox(height: 6),
+              const SizedBox(height: 4),
               Text(
-                _user?.email ?? '-',
+                _user?.email ?? 'correo@ejemplo.com',
                 style: const TextStyle(
-                  color: Color(0xFF3E4946),
-                  fontSize: 14,
+                  color: Color(0xFF6F7977),
+                  fontSize: 15,
                   fontWeight: FontWeight.w500,
                 ),
               ),
-              const SizedBox(height: 6),
+              const SizedBox(height: 12),
               Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 5,
-                ),
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
                 decoration: BoxDecoration(
-                  color: const Color(0x1A8BF1E6),
+                  color: const Color(0xFFEAF8F4),
                   borderRadius: BorderRadius.circular(999),
                 ),
                 child: Text(
-                  'Rol: ${_user?.role.isNotEmpty == true ? _user!.role : 'cliente'}',
+                  'Rol: ${_user?.role.isNotEmpty == true ? _user!.role.toUpperCase() : 'CLIENTE'}',
                   style: const TextStyle(
                     color: Color(0xFF006A5E),
-                    fontWeight: FontWeight.w700,
-                    fontSize: 12,
+                    fontWeight: FontWeight.w800,
+                    fontSize: 11,
+                    letterSpacing: 0.5,
                   ),
                 ),
               ),
-              const SizedBox(height: 20),
+              const SizedBox(height: 32),
               SizedBox(
                 width: double.infinity,
-                child: ElevatedButton.icon(
+                height: 50,
+                child: OutlinedButton.icon(
                   onPressed: _loggingOut ? null : _logout,
-                  icon: const Icon(Icons.logout),
+                  icon: const Icon(Icons.logout_rounded, color: Color(0xFFBA1A1A)),
+                  style: OutlinedButton.styleFrom(
+                    side: const BorderSide(color: Color(0xFFF0F2F1)),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                    foregroundColor: const Color(0xFFBA1A1A),
+                  ),
                   label: Text(
-                    _loggingOut ? 'Cerrando sesion...' : 'Cerrar sesion',
+                    _loggingOut ? 'Cerrando sesión...' : 'Cerrar sesión',
+                    style: GoogleFonts.manrope(fontWeight: FontWeight.w700, fontSize: 15),
                   ),
                 ),
               ),
@@ -212,125 +270,124 @@ class _HomeOverviewTab extends StatelessWidget {
   Widget build(BuildContext context) {
     return ListView(
       key: const ValueKey('customer-home'),
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 20),
+      padding: const EdgeInsets.fromLTRB(20, 10, 20, 30),
       children: [
         Container(
-          padding: const EdgeInsets.all(22),
+          padding: const EdgeInsets.all(28),
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(20),
+            borderRadius: BorderRadius.circular(28),
             gradient: const LinearGradient(
-              colors: [Color(0xFF005449), Color(0xFF008577), Color(0xFF32A58D)],
+              colors: [Color(0xFF006A5E), Color(0xFF004D40)],
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
             ),
-            boxShadow: const [
+            boxShadow: [
               BoxShadow(
-                color: Color(0x2600443B),
-                blurRadius: 18,
-                offset: Offset(0, 10),
+                color: const Color(0xFF006A5E).withOpacity(0.3),
+                blurRadius: 20,
+                offset: const Offset(0, 10),
               ),
             ],
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                'Bienvenido de vuelta',
-                style: GoogleFonts.inter(
-                  color: Colors.white.withValues(alpha: 0.92),
-                  fontWeight: FontWeight.w600,
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.2),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.verified_rounded, color: Colors.white, size: 16),
+                    const SizedBox(width: 6),
+                    Flexible(
+                      child: Text(
+                        'Cuenta Verificada',
+                        style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 11),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
                 ),
               ),
-              const SizedBox(height: 6),
+              const SizedBox(height: 16),
               Text(
-                'Tu salud, en un solo lugar',
+                'Tu salud,\nen un solo lugar',
                 style: GoogleFonts.manrope(
                   color: Colors.white,
                   fontWeight: FontWeight.w800,
-                  fontSize: 26,
-                  height: 1.1,
+                  fontSize: 28,
+                  height: 1.15,
                 ),
               ),
-              const SizedBox(height: 10),
-              const Text(
-                'Consulta catalogo, recetas, puntos canjeables y pagos desde nuestra app movil.',
+              const SizedBox(height: 12),
+              Text(
+                'Consulta catálogo, recetas, puntos y pagos desde nuestra app móvil.',
                 style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 14,
-                  height: 1.45,
-                ),
-              ),
-              const SizedBox(height: 14),
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 7,
-                ),
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.2),
-                  borderRadius: BorderRadius.circular(999),
-                ),
-                child: Text(
-                  'Nuevos accesos para ti',
-                  style: GoogleFonts.inter(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w700,
-                    fontSize: 12,
-                  ),
+                  color: Colors.white.withOpacity(0.9),
+                  fontSize: 15,
+                  height: 1.5,
                 ),
               ),
             ],
           ),
         ),
-        const SizedBox(height: 18),
+        
+        const SizedBox(height: 32),
+        
         Text(
-          'Accesos rapidos para ti',
+          'Accesos rápidos',
           style: GoogleFonts.manrope(
             fontWeight: FontWeight.w800,
             fontSize: 20,
             color: const Color(0xFF191C1C),
           ),
         ),
-        const SizedBox(height: 12),
-        const Row(
+        const SizedBox(height: 16),
+        
+        // GRID DE TARJETAS (ESTILO DASHBOARD MODERN)
+        Row(
           children: [
             Expanded(
               child: _QuickActionCard(
-                icon: Icons.local_pharmacy_outlined,
-                label: 'Catalogo de\nproductos',
-                toneColor: Color(0xFF006A5E),
-                backgroundTint: Color(0xFFEAF8F4),
+                icon: Icons.medication_rounded,
+                label: 'Catálogo',
+                toneColor: const Color(0xFF006A5E),
+                backgroundTint: const Color(0xFFEAF8F4),
               ),
             ),
-            SizedBox(width: 12),
+            const SizedBox(width: 16),
             Expanded(
               child: _QuickActionCard(
-                icon: Icons.receipt_long_outlined,
-                label: 'Mis\nrecetas',
-                toneColor: Color(0xFF1565C0),
-                backgroundTint: Color(0xFFEAF2FF),
+                icon: Icons.description_rounded,
+                label: 'Recetas',
+                toneColor: const Color(0xFF1565C0),
+                backgroundTint: const Color(0xFFEAF2FF),
               ),
             ),
           ],
         ),
-        const SizedBox(height: 12),
-        const Row(
+        const SizedBox(height: 16),
+        Row(
           children: [
             Expanded(
               child: _QuickActionCard(
-                icon: Icons.workspace_premium_outlined,
-                label: 'Mis\npuntos',
-                toneColor: Color(0xFFB76E00),
-                backgroundTint: Color(0xFFFFF3E0),
+                icon: Icons.stars_rounded,
+                label: 'Mis Puntos',
+                toneColor: const Color(0xFFB76E00),
+                backgroundTint: const Color(0xFFFFF3E0),
               ),
             ),
-            SizedBox(width: 12),
+            const SizedBox(width: 16),
             Expanded(
               child: _QuickActionCard(
-                icon: Icons.payments_outlined,
-                label: 'Mis\npagos',
-                toneColor: Color(0xFF6A1B9A),
-                backgroundTint: Color(0xFFF6ECFF),
+                icon: Icons.credit_card_rounded,
+                label: 'Mis Pagos',
+                toneColor: const Color(0xFF6A1B9A),
+                backgroundTint: const Color(0xFFF6ECFF),
               ),
             ),
           ],
@@ -357,44 +414,48 @@ class _QuickActionCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return InkWell(
       onTap: () {},
-      borderRadius: BorderRadius.circular(16),
+      borderRadius: BorderRadius.circular(24),
       child: Ink(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+        height: 110, // Altura fija para que sean casi cuadradas
+        padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
-          color: backgroundTint,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: toneColor.withValues(alpha: 0.16)),
-          boxShadow: const [
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(color: const Color(0xFFF0F2F1)),
+          boxShadow: [
             BoxShadow(
-              color: Color(0x12000000),
-              blurRadius: 10,
-              offset: Offset(0, 4),
+              color: Colors.black.withOpacity(0.02),
+              blurRadius: 15,
+              offset: const Offset(0, 5),
             ),
           ],
         ),
-        child: Row(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Container(
-              width: 40,
-              height: 40,
+              padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
-                color: toneColor.withValues(alpha: 0.14),
-                borderRadius: BorderRadius.circular(12),
+                color: backgroundTint,
+                borderRadius: BorderRadius.circular(14),
               ),
-              child: Icon(icon, color: toneColor),
+              child: Icon(icon, color: toneColor, size: 26),
             ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Text(
-                label,
-                style: TextStyle(
-                  color: Color(0xFF191C1C),
-                  fontWeight: FontWeight.w700,
-                  height: 1.2,
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  label,
+                  style: GoogleFonts.manrope(
+                    color: const Color(0xFF191C1C),
+                    fontWeight: FontWeight.w700,
+                    fontSize: 15,
+                  ),
                 ),
-              ),
+                Icon(Icons.chevron_right_rounded, color: const Color(0xFFBDC9C5), size: 20),
+              ],
             ),
-            Icon(Icons.chevron_right_rounded, color: toneColor),
           ],
         ),
       ),

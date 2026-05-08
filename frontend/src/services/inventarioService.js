@@ -1,4 +1,4 @@
-﻿import { requestJsonWithAuthRetry } from './apiClient';
+﻿import { requestJson, requestJsonWithAuthRetry } from './apiClient';
 
 const buildQuery = (params) => {
   if (!params) return '';
@@ -17,7 +17,7 @@ const buildBodyAndHeaders = (data) => {
 };
 
 export const categoriasService = {
-  listar: (params) => requestJsonWithAuthRetry(`/api/inventarios/categorias/${buildQuery(params)}`),
+  listar: (params) => requestJson(`/api/inventarios/categorias/${buildQuery(params)}`),
   crear: (data) => requestJsonWithAuthRetry('/api/inventarios/categorias/', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -34,7 +34,7 @@ export const categoriasService = {
 };
 
 export const subcategoriasService = {
-  listar: (params) => requestJsonWithAuthRetry(`/api/inventarios/subcategorias/${buildQuery(params)}`),
+  listar: (params) => requestJson(`/api/inventarios/subcategorias/${buildQuery(params)}`),
   crear: (data) => requestJsonWithAuthRetry('/api/inventarios/subcategorias/', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -51,7 +51,7 @@ export const subcategoriasService = {
 };
 
 export const laboratoriosService = {
-  listar: (params) => requestJsonWithAuthRetry(`/api/inventarios/laboratorios/${buildQuery(params)}`),
+  listar: (params) => requestJson(`/api/inventarios/laboratorios/${buildQuery(params)}`),
   crear: (data) => requestJsonWithAuthRetry('/api/inventarios/laboratorios/', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -68,8 +68,8 @@ export const laboratoriosService = {
 };
 
 export const productosService = {
-  listar: (params) => requestJsonWithAuthRetry(`/api/inventarios/productos/${buildQuery(params)}`),
-  obtener: (id) => requestJsonWithAuthRetry(`/api/inventarios/productos/${id}/`),
+  listar: (params) => requestJson(`/api/inventarios/productos/${buildQuery(params)}`),
+  obtener: (id) => requestJson(`/api/inventarios/productos/${id}/`),
   crear: (data) => requestJsonWithAuthRetry('/api/inventarios/productos/', {
     method: 'POST',
     ...buildBodyAndHeaders(data),

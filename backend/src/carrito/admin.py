@@ -11,9 +11,9 @@ class CarritoItemInline(admin.TabularInline):
 
 @admin.register(Carrito)
 class CarritoAdmin(admin.ModelAdmin):
-    list_display = ("id", "cliente", "usuario", "estado", "origen", "updated_at")
+    list_display = ("id", "usuario", "estado", "origen", "updated_at")
     list_filter = ("estado", "origen")
-    search_fields = ("id", "cliente__nombres", "cliente__apellidos", "cliente__email")
+    search_fields = ("id", "usuario__username", "usuario__email")
     readonly_fields = ("created_at", "updated_at")
     inlines = [CarritoItemInline]
 

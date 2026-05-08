@@ -4,13 +4,11 @@ from .models import Carrito, CarritoItem
 
 
 class CarritoAgregarItemSerializer(serializers.Serializer):
-    cliente_id = serializers.IntegerField(min_value=1)
     producto_id = serializers.IntegerField(min_value=1)
     cantidad = serializers.IntegerField(min_value=1)
 
 
 class CarritoActualizarItemSerializer(serializers.Serializer):
-    cliente_id = serializers.IntegerField(min_value=1)
     cantidad = serializers.IntegerField(min_value=1)
 
 
@@ -20,7 +18,6 @@ class RecetaConfirmacionSerializer(serializers.Serializer):
 
 
 class CarritoConfirmarSerializer(serializers.Serializer):
-    cliente_id = serializers.IntegerField(min_value=1)
     estado = serializers.CharField(required=False, default="pendiente")
     descuento = serializers.DecimalField(max_digits=12, decimal_places=2, required=False, default=0)
     impuesto = serializers.DecimalField(max_digits=12, decimal_places=2, required=False, default=0)
@@ -42,5 +39,5 @@ class CarritoSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Carrito
-        fields = ["id", "cliente", "usuario", "estado", "origen", "invitado_token", "created_at", "updated_at", "items"]
+        fields = ["id", "usuario", "estado", "origen", "invitado_token", "created_at", "updated_at", "items"]
         read_only_fields = ["invitado_token"]

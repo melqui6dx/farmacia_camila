@@ -5,7 +5,7 @@ import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { useOutsideClick } from "../../hooks/useOutsideClick";
 
-export default function MainHeader({ isAuthenticated, user, onLoginClick, onRegisterClick, onLogoutClick, onProfileClick }) {
+export default function MainHeader({ isAuthenticated, user, onLoginClick, onRegisterClick, onLogoutClick, onProfileClick, onCartClick }) {
   const [showUserMenu, setShowUserMenu] = useState(false);
   const userMenuRef = useRef(null);
 
@@ -103,7 +103,7 @@ export default function MainHeader({ isAuthenticated, user, onLoginClick, onRegi
               </Button>
             </>
           )}
-          <Button size="sm" className="gap-1 bg-teal-700 hover:bg-teal-600">
+          <Button size="sm" className="gap-1 bg-teal-700 hover:bg-teal-600" onClick={onCartClick}>
             <CartIcon className="h-4 w-4" />
             Ver carrito
           </Button>

@@ -11,7 +11,6 @@ class Carrito(models.Model):
         ("cancelado", "Cancelado"),
     ]
 
-    cliente = models.ForeignKey("clientes.Cliente", on_delete=models.CASCADE, related_name="carritos")
     usuario = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         null=True,

@@ -108,10 +108,14 @@ FRONTEND_VERIFY_EMAIL_URL = os.getenv(
 
 CORS_ALLOWED_ORIGINS = [
     origin.strip()
-    for origin in os.getenv("CORS_ALLOWED_ORIGINS", "http://localhost:5173").split(",")
+    for origin in os.getenv("CORS_ALLOWED_ORIGINS", "http://localhost:5173,http://localhost:53400").split(",")
     if origin.strip()
 ]
 CORS_ALLOW_CREDENTIALS = True
+
+# En modo DEBUG, permitir todos los orígenes para facilitar desarrollo
+if DEBUG:
+    CORS_ALLOW_ALL_ORIGINS = True
 
 AUTH_ACCESS_COOKIE_NAME = os.getenv("AUTH_ACCESS_COOKIE_NAME", "access_token")
 AUTH_REFRESH_COOKIE_NAME = os.getenv("AUTH_REFRESH_COOKIE_NAME", "refresh_token")

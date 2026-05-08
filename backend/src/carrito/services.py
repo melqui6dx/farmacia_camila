@@ -12,23 +12,13 @@ class CarritoServiceError(Exception):
     pass
 
 
-def obtener_o_crear_carrito_activo(*, cliente, usuario=None):
-    carrito = Carrito.objects.filter(cliente=cliente, estado="activo").order_by("-updated_at").first()
+def obtener_o_crear_carrito_activo(*, usuario):
+    carrito = Carrito.objects.filter(usuario=usuario, estado="activo").order_by("-updated_at").first()
     if carrito:
-        changed_fields = []
-        if usuario and carrito.usuario_id is None:
-            carrito.usuario = usuario
-            changed_fields.append("usuario")
-        if cliente.tipo == "invitado" and cliente.usuario_id is None and not carrito.invitado_token:
-            carrito.ensure_guest_token()
-            changed_fields.append("invitado_token")
-        if changed_fields:
-            changed_fields.append("updated_at")
-            carrito.save(update_fields=changed_fields)
         return carrito
 
-    carrito = Carrito(cliente=cliente, usuario=usuario, estado="activo", origen="online")
-    if cliente.tipo == "invitado" and cliente.usuario_id is None:
+    carrito = Carrito(usuario=usuario, estado="activo", origen="online")
+    if not usuario:
         carrito.ensure_guest_token()
     carrito.save()
     return carrito
