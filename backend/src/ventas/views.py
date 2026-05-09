@@ -1,9 +1,14 @@
-﻿from django.shortcuts import get_object_or_404
+﻿from decimal import Decimal, InvalidOperation
+
+import stripe
+from django.conf import settings
+from django.db import transaction
+from django.shortcuts import get_object_or_404
+from django.views.decorators.csrf import csrf_exempt
 from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
-from decimal import Decimal
 
 from clientes.models import Cliente
 from core.audit import log_system_event
@@ -11,7 +16,106 @@ from carrito.models import Carrito
 
 from .serializers import POSVentaInputSerializer, VentaCreateInputSerializer, VentaSerializer
 from .services import VentaServiceError, crear_venta_service, crear_payment_intent, verificar_payment_intent
-from .models import Factura
+from .models import Factura, Venta
+
+
+def _to_decimal_2(value, *, field_name):
+    try:
+        return Decimal(str(value)).quantize(Decimal("0.01"))
+    except (InvalidOperation, TypeError, ValueError) as exc:
+        raise VentaServiceError(f"{field_name} invalido.", code="monto_invalido") from exc
+
+
+def _build_checkout_response(venta):
+    factura = venta.factura
+    return {
+        "venta": VentaSerializer(venta).data,
+        "factura": {
+            "numero": factura.numero_factura,
+            "nombre_cliente": factura.nombre_cliente,
+            "email_cliente": factura.email_cliente,
+            "fecha_emision": factura.fecha_emision,
+        },
+    }
+
+
+@transaction.atomic
+def _confirmar_pago_desde_carrito(*, usuario, carrito_token, payment_intent_id, datos_factura, total_pagado):
+    venta_existente = Venta.objects.filter(stripe_payment_intent_id=payment_intent_id).first()
+    if venta_existente:
+        return venta_existente, False
+
+    if usuario:
+        carrito = Carrito.objects.select_for_update().filter(usuario=usuario, estado="activo").first()
+    else:
+        carrito = Carrito.objects.select_for_update().filter(invitado_token=carrito_token, estado="activo").first()
+
+    if not carrito:
+        raise VentaServiceError("Carrito activo no encontrado.", code="carrito_no_encontrado")
+
+    items = list(carrito.items.select_related("producto").all())
+    if not items:
+        raise VentaServiceError("El carrito esta vacio.", code="carrito_vacio")
+
+    total_carrito = sum((item.subtotal for item in items), Decimal("0")).quantize(Decimal("0.01"))
+    if total_pagado != total_carrito:
+        raise VentaServiceError(
+            f"Monto pagado no coincide con carrito. pagado={total_pagado} carrito={total_carrito}",
+            code="monto_no_coincide",
+        )
+
+    nombre_cliente = (datos_factura or {}).get("nombre_cliente", "Cliente")
+    email_cliente = (datos_factura or {}).get("email_cliente", "")
+    telefono = (datos_factura or {}).get("telefono", "")
+
+    if usuario:
+        cliente, _ = Cliente.objects.get_or_create(
+            usuario=usuario,
+            defaults={
+                "nombres": nombre_cliente,
+                "apellidos": "",
+                "email": email_cliente,
+                "telefono": telefono,
+                "tipo": "registrado",
+                "estado": True,
+            },
+        )
+    else:
+        cliente = Cliente.objects.create(
+            tipo="invitado",
+            nombres=nombre_cliente,
+            apellidos="",
+            email=email_cliente,
+            telefono=telefono,
+            estado=True,
+        )
+
+    venta_items = [
+        {
+            "producto_id": item.producto_id,
+            "cantidad": item.cantidad,
+            "precio_unitario": item.precio_unitario,
+        }
+        for item in items
+    ]
+
+    venta = crear_venta_service(
+        cliente=cliente,
+        items=venta_items,
+        origen="online",
+        vendedor=None,
+        estado="pagada",
+        descuento=0,
+        impuesto=0,
+        observacion=f"Pago con Stripe - Intent ID: {payment_intent_id}",
+        datos_factura=datos_factura,
+        stripe_payment_intent_id=payment_intent_id,
+    )
+
+    carrito.estado = "confirmado"
+    carrito.save(update_fields=["estado", "updated_at"])
+
+    return venta, True
 
 
 # ========== VENTAS EXISTENTES ==========
@@ -181,6 +285,7 @@ def crear_intent_pago(request):
     Body: { "total": 150.50 }
     """
     total = request.data.get('total')
+    metadata_raw = request.data.get('metadata') if isinstance(request.data, dict) else None
     
     if not total:
         return Response(
@@ -202,8 +307,21 @@ def crear_intent_pago(request):
             status=status.HTTP_400_BAD_REQUEST
         )
     
+    metadata = {}
+    if isinstance(metadata_raw, dict):
+        for key, value in metadata_raw.items():
+            if key is None:
+                continue
+            key_str = str(key).strip()[:40]
+            if not key_str:
+                continue
+            metadata[key_str] = str(value).strip()[:500]
+
+    if getattr(request, 'user', None) and request.user.is_authenticated:
+        metadata.setdefault('user_id', str(request.user.id))
+
     try:
-        intent_data = crear_payment_intent(total_decimal)
+        intent_data = crear_payment_intent(total_decimal, metadata=metadata)
         return Response(intent_data, status=status.HTTP_200_OK)
     except Exception as e:
         log_system_event(
@@ -236,14 +354,13 @@ def confirmar_pago_venta(request):
     payment_intent_id = request.data.get('payment_intent_id')
     carrito_token = request.data.get('carrito_token', '')
     datos_factura = request.data.get('datos_factura', {})
-    
+
     if not payment_intent_id:
         return Response(
             {'detail': 'payment_intent_id es requerido.'},
             status=status.HTTP_400_BAD_REQUEST
         )
-    
-    # 1. Verificar el pago en Stripe
+
     try:
         intent_info = verificar_payment_intent(payment_intent_id)
     except Exception as e:
@@ -258,92 +375,28 @@ def confirmar_pago_venta(request):
             {'detail': f'Error al verificar el pago: {str(e)}'},
             status=status.HTTP_400_BAD_REQUEST
         )
-    
+
     if intent_info['status'] != 'succeeded':
         return Response(
             {'detail': f'El pago no fue exitoso. Estado: {intent_info["status"]}'},
             status=status.HTTP_400_BAD_REQUEST
         )
-    
-    # 2. Obtener el carrito activo
+
     usuario = request.user if request.user.is_authenticated else None
-    
-    if usuario:
-        carrito = Carrito.objects.filter(usuario=usuario, estado='activo').first()
-    else:
-        if not carrito_token:
-            return Response(
-                {'detail': 'carrito_token requerido para usuarios invitados.'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-        carrito = Carrito.objects.filter(invitado_token=carrito_token, estado='activo').first()
-    
-    if not carrito:
+    if not usuario and not carrito_token:
         return Response(
-            {'detail': 'Carrito activo no encontrado.'},
-            status=status.HTTP_404_NOT_FOUND
-        )
-    
-    # 3. Validar que el carrito tenga items
-    items = list(carrito.items.select_related('producto').all())
-    if not items:
-        return Response(
-            {'detail': 'El carrito está vacío.'},
+            {'detail': 'carrito_token requerido para usuarios invitados.'},
             status=status.HTTP_400_BAD_REQUEST
         )
-    
-    # 4. Obtener o crear el cliente
-    nombre_cliente = datos_factura.get('nombre_cliente', 'Cliente')
-    email_cliente = datos_factura.get('email_cliente', '')
-    telefono = datos_factura.get('telefono', '')
-    
-    if usuario:
-        cliente, created = Cliente.objects.get_or_create(
-            usuario=usuario,
-            defaults={
-                'nombres': nombre_cliente,
-                'apellidos': '',
-                'email': email_cliente,
-                'telefono': telefono,
-                'tipo': 'registrado',
-                'estado': True,
-            }
-        )
-    else:
-        cliente = Cliente.objects.create(
-            tipo='invitado',
-            nombres=nombre_cliente,
-            apellidos='',
-            email=email_cliente,
-            telefono=telefono,
-            estado=True,
-        )
-    
-    # 5. Construir items para crear_venta_service
-    venta_items = [
-        {
-            'producto_id': item.producto_id,
-            'cantidad': item.cantidad,
-            'precio_unitario': item.precio_unitario,
-        }
-        for item in items
-    ]
-    
-    # 6. Calcular total del carrito (opcional, para validación)
-    total_carrito = sum(item.subtotal for item in items)
-    
-    # 7. Crear la venta (con factura automática)
+
     try:
-        venta = crear_venta_service(
-            cliente=cliente,
-            items=venta_items,
-            origen='online',
-            vendedor=None,
-            estado='pagada',
-            descuento=0,
-            impuesto=0,
-            observacion=f'Pago con Stripe - Intent ID: {payment_intent_id}',
-            datos_factura=datos_factura,
+        total_pagado = _to_decimal_2(intent_info['amount'], field_name='Monto pagado')
+        venta, created = _confirmar_pago_desde_carrito(
+            usuario=usuario,
+            carrito_token=carrito_token,
+            payment_intent_id=payment_intent_id,
+            datos_factura=datos_factura if isinstance(datos_factura, dict) else {},
+            total_pagado=total_pagado,
         )
     except VentaServiceError as exc:
         log_system_event(
@@ -351,7 +404,7 @@ def confirmar_pago_venta(request):
             accion='CONFIRMAR_PAGO',
             modulo='ventas',
             resultado='FAILURE',
-            mensaje=f'Error crear venta: {str(exc)}'
+            mensaje=f'Error confirmar pago: {str(exc)}'
         )
         return Response(
             {'detail': str(exc), 'code': exc.code},
@@ -363,41 +416,27 @@ def confirmar_pago_venta(request):
             accion='CONFIRMAR_PAGO',
             modulo='ventas',
             resultado='FAILURE',
-            mensaje=f'Error inesperado crear venta: {str(exc)}'
+            mensaje=f'Error inesperado confirmar pago: {str(exc)}'
         )
         return Response(
             {'detail': f'Error al crear la venta: {str(exc)}'},
             status=status.HTTP_400_BAD_REQUEST
         )
-    
-    # 8. Marcar carrito como confirmado
-    carrito.estado = 'confirmado'
-    carrito.save(update_fields=['estado', 'updated_at'])
-    
-    # 9. Obtener la factura generada
-    factura = venta.factura
-    
-    # 10. Log de éxito
+
     log_system_event(
         request=request,
         accion='CONFIRMAR_PAGO',
         modulo='ventas',
         resultado='SUCCESS',
-        mensaje=f'Venta #{venta.id} pagada con Stripe. Factura: {factura.numero_factura}',
+        mensaje=f'Venta #{venta.id} pagada con Stripe. Factura: {venta.factura.numero_factura}',
         entidad='Venta',
         entidad_id=str(venta.id),
     )
-    
-    # 11. Respuesta al frontend
-    return Response({
-        'venta': VentaSerializer(venta).data,
-        'factura': {
-            'numero': factura.numero_factura,
-            'nombre_cliente': factura.nombre_cliente,
-            'email_cliente': factura.email_cliente,
-            'fecha_emision': factura.fecha_emision,
-        }
-    }, status=status.HTTP_201_CREATED)
+
+    return Response(
+        _build_checkout_response(venta),
+        status=status.HTTP_201_CREATED if created else status.HTTP_200_OK,
+    )
 
 
 @api_view(['GET'])
@@ -440,3 +479,108 @@ def obtener_factura(request, numero_factura):
     }
     
     return Response(data, status=status.HTTP_200_OK)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def listar_mis_facturas(request):
+    cliente = Cliente.objects.filter(usuario=request.user, estado=True).first()
+    if not cliente:
+        return Response({'results': []}, status=status.HTTP_200_OK)
+
+    facturas = (
+        Factura.objects
+        .select_related('venta')
+        .filter(venta__cliente=cliente)
+        .order_by('-fecha_emision')
+    )
+
+    data = [
+        {
+            'id': factura.id,
+            'numero_factura': factura.numero_factura,
+            'total': str(factura.venta.total),
+            'estado': factura.venta.estado,
+            'fecha_emision': factura.fecha_emision,
+        }
+        for factura in facturas
+    ]
+    return Response({'results': data}, status=status.HTTP_200_OK)
+
+
+@csrf_exempt
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def stripe_webhook(request):
+    payload = request.body
+    sig_header = request.META.get('HTTP_STRIPE_SIGNATURE')
+    webhook_secret = settings.STRIPE_WEBHOOK_SECRET
+
+    if not webhook_secret:
+        return Response({'detail': 'Webhook secret no configurado.'}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+
+    try:
+        event = stripe.Webhook.construct_event(payload, sig_header, webhook_secret)
+    except ValueError:
+        return Response({'detail': 'Payload invalido.'}, status=status.HTTP_400_BAD_REQUEST)
+    except stripe.error.SignatureVerificationError:
+        return Response({'detail': 'Firma webhook invalida.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    if event.get('type') != 'payment_intent.succeeded':
+        return Response({'ok': True, 'ignored': event.get('type')}, status=status.HTTP_200_OK)
+
+    payment_intent = event['data']['object']
+    payment_intent_id = payment_intent.get('id')
+    metadata = payment_intent.get('metadata') or {}
+    carrito_token = metadata.get('carrito_token', '')
+    total_pagado = _to_decimal_2(Decimal(payment_intent.get('amount_received', 0)) / Decimal('100'), field_name='Monto pagado')
+
+    if not payment_intent_id:
+        return Response({'detail': 'Evento sin payment_intent id.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    usuario = None
+    user_id = metadata.get('user_id')
+    if user_id:
+        try:
+            from django.contrib.auth import get_user_model
+            usuario = get_user_model().objects.filter(id=int(user_id)).first()
+        except Exception:
+            usuario = None
+
+    if not usuario and not carrito_token:
+        return Response({'ok': True, 'ignored': 'sin contexto de carrito'}, status=status.HTTP_200_OK)
+
+    try:
+        venta, created = _confirmar_pago_desde_carrito(
+            usuario=usuario,
+            carrito_token=carrito_token,
+            payment_intent_id=payment_intent_id,
+            datos_factura={
+                'nombre_cliente': metadata.get('nombre_cliente', 'Cliente'),
+                'email_cliente': metadata.get('email_cliente', ''),
+                'telefono': metadata.get('telefono', ''),
+                'nit_ci': metadata.get('nit_ci', ''),
+            },
+            total_pagado=total_pagado,
+        )
+    except VentaServiceError as exc:
+        log_system_event(
+            request=None,
+            accion='STRIPE_WEBHOOK',
+            modulo='ventas',
+            resultado='FAILURE',
+            mensaje=f'Webhook Stripe no pudo confirmar pago {payment_intent_id}: {exc}',
+        )
+        return Response({'detail': str(exc), 'code': exc.code}, status=status.HTTP_400_BAD_REQUEST)
+
+    log_system_event(
+        request=None,
+        accion='STRIPE_WEBHOOK',
+        modulo='ventas',
+        resultado='SUCCESS',
+        mensaje=f'Webhook Stripe confirmo venta #{venta.id} ({"created" if created else "idempotent"})',
+        entidad='Venta',
+        entidad_id=str(venta.id),
+        usuario=usuario,
+    )
+    return Response({'ok': True, 'venta_id': venta.id, 'created': created}, status=status.HTTP_200_OK)

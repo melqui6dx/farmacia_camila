@@ -419,27 +419,29 @@ export default function CatalogoFarmaceutico() {
     console.log("Sincronizando carrito con backend...");
     
     try {
-      // Sincronizar cada producto del carrito local con el backend
-      for (const item of cartItems) {
-        await carritoService.agregar({
-          producto_id: item.id,
-          cantidad: item.cantidad,
-        });
-      }
-      
-      // Obtener el carrito actualizado con el token
+      // El backend ya está actualizado en cada agregar; aquí solo refrescamos estado.
       const carritoData = await carritoService.listar();
       const token = carritoData.invitado_token || carritoService.getToken();
+      const backendItems = Array.isArray(carritoData?.items) ? carritoData.items : [];
+      const itemsCheckout = backendItems.map((item) => ({
+        id: item.producto,
+        nombre_comercial: item.producto_nombre || item.producto,
+        precio_venta: Number(item.precio_unitario || 0),
+        imagen: "",
+        cantidad: Number(item.cantidad || 0),
+      }));
+      const subtotalCheckout = Number(carritoData?.subtotal || 0);
+      const totalCheckout = Number(carritoData?.total || 0);
       
       console.log("Carrito sincronizado. Token:", token);
       
       // Navegar a checkout con los datos y el token
       navigate("/checkout", {
         state: {
-          items: cartItems,
-          subtotal: subtotalCarrito,
-          impuesto: impuestoCarrito,
-          total: totalCarrito,
+          items: itemsCheckout,
+          subtotal: subtotalCheckout,
+          impuesto: 0,
+          total: totalCheckout,
           carrito_token: token,
         },
       });

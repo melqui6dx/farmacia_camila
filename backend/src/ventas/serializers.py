@@ -91,8 +91,10 @@ class VentaSerializer(serializers.ModelSerializer):
             "descuento",
             "impuesto",
             "total",
+            "stripe_payment_intent_id",
             "observacion",
             "created_at",
             "updated_at",
             "detalles",
         ]
+        read_only_fields = ["stripe_payment_intent_id"]

@@ -6,7 +6,9 @@ from .views import (
     crear_venta_pos,
     crear_intent_pago,
     confirmar_pago_venta,
+    listar_mis_facturas,
     obtener_factura,
+    stripe_webhook,
 )
 
 urlpatterns = [
@@ -18,5 +20,7 @@ urlpatterns = [
     # Nuevas URLs de Stripe + Facturación
     path("intent-pago/", crear_intent_pago, name="crear_intent_pago"),
     path("confirmar-pago/", confirmar_pago_venta, name="confirmar_pago_venta"),
+    path("mis-facturas/", listar_mis_facturas, name="listar_mis_facturas"),
     path("factura/<str:numero_factura>/", obtener_factura, name="obtener_factura"),
+    path("stripe/webhook/", stripe_webhook, name="stripe_webhook"),
 ]

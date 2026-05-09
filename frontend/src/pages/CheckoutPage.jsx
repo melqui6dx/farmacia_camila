@@ -43,8 +43,21 @@ function formatPrecio(valor) {
   }).format(numero);
 }
 
+function toNumber(value, fallback = 0) {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : fallback;
+}
+
+function extractErrorMessage(err) {
+  if (!err) return "No se pudo completar el pago.";
+  if (typeof err === "string") return err;
+  if (err.detail) return err.detail;
+  if (err.message) return err.message;
+  return "No se pudo completar el pago.";
+}
+
 // Componente interno del formulario de pago
-function PaymentForm({ total, onSuccess, onError, onCartCleared }) {
+function PaymentForm({ total, onSuccess, onError, onCartCleared, onCartSynced }) {
   const stripe = useStripe();
   const elements = useElements();
   const { user } = useAuth();
@@ -97,12 +110,20 @@ function PaymentForm({ total, onSuccess, onError, onCartCleared }) {
         }
       }
 
-      // 1. Crear PaymentIntent
+      // 1. Revalidar carrito en backend para usar monto exacto del servidor
+      const carritoActual = await carritoService.listar();
+      const totalBackend = toNumber(carritoActual?.total, 0);
+      if (totalBackend <= 0) {
+        throw new Error("El carrito esta vacio o no tiene total valido.");
+      }
+      onCartSynced?.(carritoActual);
+
+      // 2. Crear PaymentIntent
       console.log("1. Creando PaymentIntent...");
-      const intentData = await pagosService.crearIntent(total);
+      const intentData = await pagosService.crearIntent(Number(totalBackend.toFixed(2)));
       console.log("PaymentIntent creado:", intentData);
 
-      // 2. Confirmar pago con Stripe
+      // 3. Confirmar pago con Stripe
       console.log("2. Confirmando pago con Stripe...");
       const { error, paymentIntent } = await stripe.confirmCardPayment(
         intentData.client_secret,
@@ -156,7 +177,7 @@ function PaymentForm({ total, onSuccess, onError, onCartCleared }) {
       }
     } catch (err) {
       console.error("ERROR en handleSubmit:", err);
-      onError(err.message);
+      onError(extractErrorMessage(err));
     } finally {
       setProcessing(false);
     }
@@ -265,6 +286,27 @@ export default function CheckoutPage() {
   const [paymentError, setPaymentError] = useState(null);
   const [metodoEntrega, setMetodoEntrega] = useState("domicilio");
 
+  const hydrateCartFromBackend = (data) => {
+    const backendItems = Array.isArray(data?.items) ? data.items : [];
+    if (backendItems.length === 0) {
+      setItems([]);
+      setSubtotal(0);
+      setTotal(0);
+      return;
+    }
+
+    const cartItems = backendItems.map((item) => ({
+      id: item.producto,
+      nombre_comercial: item.producto_nombre,
+      precio_venta: toNumber(item.precio_unitario),
+      cantidad: toNumber(item.cantidad, 1),
+    }));
+
+    setItems(cartItems);
+    setSubtotal(toNumber(data?.subtotal));
+    setTotal(toNumber(data?.total));
+  };
+
   // Cargar carrito desde state o desde backend
   useEffect(() => {
     const loadCart = async () => {
@@ -281,32 +323,12 @@ export default function CheckoutPage() {
           setItems(stateItems);
           setSubtotal(stateSubtotal);
           setTotal(stateTotal);
-          setLoading(false);
-          return;
         }
 
         console.log("Cargando desde backend...");
         const data = await carritoService.listar();
         console.log("Respuesta del carrito:", data);
-
-        if (data.items && data.items.length > 0) {
-          const cartItems = data.items.map((item) => ({
-            id: item.producto,
-            nombre_comercial: item.producto_nombre,
-            precio_venta: parseFloat(item.precio_unitario),
-            cantidad: item.cantidad,
-          }));
-          setItems(cartItems);
-          const calcSubtotal = cartItems.reduce(
-            (acc, item) => acc + item.precio_venta * item.cantidad,
-            0
-          );
-          setSubtotal(calcSubtotal);
-          setTotal(calcSubtotal + calcSubtotal * 0.0825);
-          console.log("Items cargados:", cartItems);
-        } else {
-          console.log("Carrito vacío");
-        }
+        hydrateCartFromBackend(data);
       } catch (error) {
         console.error("Error al cargar carrito:", error);
       } finally {
@@ -332,9 +354,9 @@ export default function CheckoutPage() {
     }
   }, [paymentSuccess]);
 
-  const envio = metodoEntrega === "domicilio" ? 5 : 0;
-  const impuesto = subtotal * 0.0825;
-  const totalConEnvio = total + envio;
+  const envio = 0;
+  const impuesto = 0;
+  const totalConEnvio = total;
 
   const handlePaymentSuccess = (data) => {
     console.log("Pago exitoso, data:", data);
@@ -513,6 +535,7 @@ export default function CheckoutPage() {
                       onSuccess={handlePaymentSuccess}
                       onError={handlePaymentError}
                       onCartCleared={handleCartCleared}
+                      onCartSynced={hydrateCartFromBackend}
                     />
                   </Elements>
                 </div>

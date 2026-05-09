@@ -19,4 +19,14 @@ class AppConfig {
 
     return 'http://10.0.2.2:8000';
   }
+
+  static const stripePublishableKey = String.fromEnvironment(
+    'STRIPE_PUBLISHABLE_KEY',
+    defaultValue: '',
+  );
+
+  static const stripeMerchantDisplayName = String.fromEnvironment(
+    'STRIPE_MERCHANT_DISPLAY_NAME',
+    defaultValue: 'Farmacia Bibosi',
+  );
 }

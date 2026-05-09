@@ -40,6 +40,8 @@ const clearCarritoToken = () => {
   localStorage.removeItem('carrito_token');
 };
 
+const isUsuarioAutenticado = () => Boolean(localStorage.getItem('current_user'));
+
 // Headers con token de carrito (para invitados)
 const getCarritoHeaders = () => {
   const token = getCarritoToken();
@@ -67,7 +69,7 @@ export const carritoService = {
     // Guardar token si viene en la respuesta
     if (response?.invitado_token) {
       setCarritoToken(response.invitado_token);
-    } else {
+    } else if (!isUsuarioAutenticado()) {
       console.warn("⚠️ agregar: No se recibió invitado_token en la respuesta");
     }
     
@@ -88,7 +90,7 @@ export const carritoService = {
     // Guardar token si viene en la respuesta
     if (response?.invitado_token) {
       setCarritoToken(response.invitado_token);
-    } else {
+    } else if (!isUsuarioAutenticado()) {
       console.warn("⚠️ listar: No se recibió invitado_token en la respuesta");
     }
     

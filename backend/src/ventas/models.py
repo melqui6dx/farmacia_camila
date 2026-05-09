@@ -36,6 +36,7 @@ class Venta(models.Model):
     descuento = models.DecimalField(max_digits=12, decimal_places=2, default=0, validators=[MinValueValidator(0)])
     impuesto = models.DecimalField(max_digits=12, decimal_places=2, default=0, validators=[MinValueValidator(0)])
     total = models.DecimalField(max_digits=12, decimal_places=2, validators=[MinValueValidator(0)])
+    stripe_payment_intent_id = models.CharField(max_length=128, blank=True, null=True, unique=True, db_index=True)
 
     observacion = models.TextField(blank=True)
     created_at = models.DateTimeField(auto_now_add=True)

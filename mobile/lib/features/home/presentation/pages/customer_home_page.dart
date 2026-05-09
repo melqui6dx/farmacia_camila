@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../cart/customer_cart_tab.dart'; 
 import '../../../catalog/customer_catalog_tab.dart';
+import '../../../payments/my_payments_page.dart';
 import '../../../../core/auth/auth_session_manager.dart';
 import '../../../auth/data/models/auth_user.dart';
 import '../../../auth/presentation/pages/login_page.dart';
@@ -57,7 +58,13 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
     }
 
     final pages = [
-      const _HomeOverviewTab(),
+      _HomeOverviewTab(
+        onOpenPayments: () {
+          Navigator.of(context).push(
+            MaterialPageRoute(builder: (_) => const MyPaymentsPage()),
+          );
+        },
+      ),
       CustomerCatalogTab(clienteId: _clienteId, accessToken: _accessToken),
       const CartTab(), 
       const _ProfileTab(),
@@ -264,7 +271,9 @@ class _ProfileTabState extends State<_ProfileTab> {
 }
 
 class _HomeOverviewTab extends StatelessWidget {
-  const _HomeOverviewTab();
+  const _HomeOverviewTab({required this.onOpenPayments});
+
+  final VoidCallback onOpenPayments;
 
   @override
   Widget build(BuildContext context) {
@@ -388,6 +397,7 @@ class _HomeOverviewTab extends StatelessWidget {
                 label: 'Mis Pagos',
                 toneColor: const Color(0xFF6A1B9A),
                 backgroundTint: const Color(0xFFF6ECFF),
+                onTap: onOpenPayments,
               ),
             ),
           ],
@@ -403,17 +413,19 @@ class _QuickActionCard extends StatelessWidget {
     required this.label,
     required this.toneColor,
     required this.backgroundTint,
+    this.onTap,
   });
 
   final IconData icon;
   final String label;
   final Color toneColor;
   final Color backgroundTint;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
     return InkWell(
-      onTap: () {},
+      onTap: onTap,
       borderRadius: BorderRadius.circular(24),
       child: Ink(
         height: 110, // Altura fija para que sean casi cuadradas

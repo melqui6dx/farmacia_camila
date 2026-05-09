@@ -35,7 +35,7 @@ def crear_payment_intent(total: Decimal, metadata: dict = None) -> dict:
     return {
         'client_secret': intent.client_secret,
         'payment_intent_id': intent.id,
-        'amount': intent.amount / 100,
+        'amount': str((Decimal(intent.amount) / Decimal('100')).quantize(Decimal('0.01'))),
         'currency': intent.currency,
     }
 
@@ -47,7 +47,7 @@ def verificar_payment_intent(payment_intent_id: str) -> dict:
     return {
         'id': intent.id,
         'status': intent.status,
-        'amount': intent.amount / 100,
+        'amount': (Decimal(intent.amount) / Decimal('100')).quantize(Decimal('0.01')),
         'currency': intent.currency,
         'metadata': intent.metadata,
     }
@@ -66,6 +66,7 @@ def crear_venta_service(
     impuesto=Decimal("0"),
     observacion="",
     datos_factura=None,
+    stripe_payment_intent_id=None,
 ):
     """
     Crea una venta con todos sus detalles, movimientos de inventario y factura.
@@ -179,6 +180,7 @@ def crear_venta_service(
         descuento=descuento,
         impuesto=impuesto,
         total=total_venta,
+        stripe_payment_intent_id=stripe_payment_intent_id,
         observacion=observacion,
     )
 
