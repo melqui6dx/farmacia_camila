@@ -133,3 +133,7 @@ docker compose exec backend python src/manage.py startapp inventario
 - No guardar credenciales reales en el README.
 - Para desarrollo local, usar usuarios de prueba en `.env` o en seeds internas.
 
+# Ver desde el contenedor backend
+docker compose exec backend python -c "import os; print('SECRET:', os.environ.get('STRIPE_SECRET_KEY', 'NO'))"
+docker compose exec backend python -c "import os; print('PUBLIC:', os.environ.get('STRIPE_PUBLIC_KEY', 'NO'))"
+

@@ -65,3 +65,39 @@ class DetalleVenta(models.Model):
 
     def __str__(self):
         return f"Venta #{self.venta_id} - {self.producto} x{self.cantidad}"
+    
+class Factura(models.Model):
+    TIPO_CHOICES = [
+        ('simple', 'Comprobante simple'),
+        ('con_nit', 'Factura con NIT'),
+    ]
+    
+    venta = models.OneToOneField(
+        Venta,
+        on_delete=models.CASCADE,
+        related_name='factura'
+    )
+    tipo = models.CharField(max_length=20, choices=TIPO_CHOICES, default='simple')
+    numero_factura = models.CharField(max_length=50, unique=True, editable=False)
+    nombre_cliente = models.CharField(max_length=200)
+    email_cliente = models.EmailField()
+    nit_ci = models.CharField(max_length=50, blank=True, default='')
+    fecha_emision = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        verbose_name = 'Factura'
+        verbose_name_plural = 'Facturas'
+        ordering = ['-fecha_emision']
+    
+    def save(self, *args, **kwargs):
+        if not self.numero_factura:
+            # Generar número correlativo: FACT-202500001
+            from django.utils import timezone
+            last = Factura.objects.order_by('-id').first()
+            next_num = (last.id + 1) if last else 1
+            year = timezone.now().year
+            self.numero_factura = f'FACT-{year}{next_num:06d}'
+        super().save(*args, **kwargs)
+    
+    def __str__(self):
+        return f'{self.numero_factura} - {self.nombre_cliente}'

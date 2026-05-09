@@ -15,6 +15,9 @@ class CarritoServiceError(Exception):
 def obtener_o_crear_carrito_activo(*, usuario):
     carrito = Carrito.objects.filter(usuario=usuario, estado="activo").order_by("-updated_at").first()
     if carrito:
+        if not usuario and not carrito.invitado_token:
+            carrito.ensure_guest_token()
+            carrito.save(update_fields=["invitado_token", "updated_at"])
         return carrito
 
     carrito = Carrito(usuario=usuario, estado="activo", origen="online")
