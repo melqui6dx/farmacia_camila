@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:flutter_svg/flutter_svg.dart';
 import '../cart/data/cart_service.dart';
 import '../../core/auth/auth_session_manager.dart';
 
@@ -71,13 +70,15 @@ class _ProductDetailsPageState extends State<ProductDetailsPage> {
                         child: Padding(
                           padding: const EdgeInsets.all(30),
                           child: p['imagen'] != null
-                              ? (p['imagen'].toString().toLowerCase().endsWith('.svg')
-                                  ? SvgPicture.network(p['imagen'], fit: BoxFit.contain)
-                                  : Image.network(
-                                      p['imagen'],
-                                      fit: BoxFit.contain,
-                                      errorBuilder: (context, error, stackTrace) => const Icon(Icons.image_not_supported, size: 80, color: Color(0xFFBDC9C5)),
-                                    ))
+                              ? Image.network(
+                                  p['imagen'],
+                                  fit: BoxFit.contain,
+                                  errorBuilder: (context, error, stackTrace) => const Icon(
+                                    Icons.image_not_supported,
+                                    size: 80,
+                                    color: Color(0xFFBDC9C5),
+                                  ),
+                                )
                               : const Icon(Icons.medication, size: 80, color: Color(0xFFBDC9C5)),
                         ),
                       ),

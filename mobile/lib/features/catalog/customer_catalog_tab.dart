@@ -1,7 +1,6 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
-import 'package:flutter_svg/flutter_svg.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../../core/auth/auth_session_manager.dart';
@@ -366,9 +365,14 @@ class _CustomerCatalogTabState extends State<CustomerCatalogTab> {
                             child: ClipRRect(
                               borderRadius: BorderRadius.circular(6),
                               child: imageUrl != null && imageUrl.isNotEmpty
-                                  ? (imageUrl.toLowerCase().endsWith('.svg')
-                                      ? SvgPicture.network(imageUrl, fit: BoxFit.contain)
-                                      : Image.network(imageUrl, fit: BoxFit.contain))
+                                  ? Image.network(
+                                      imageUrl,
+                                      fit: BoxFit.contain,
+                                      errorBuilder: (context, error, stackTrace) => const Icon(
+                                        Icons.medication_liquid_rounded,
+                                        color: Color(0xFF9AA8A4),
+                                      ),
+                                    )
                                   : const Icon(Icons.medication_liquid_rounded, color: Color(0xFF9AA8A4)),
                             ),
                           ),
@@ -534,9 +538,15 @@ class _ProductCard extends StatelessWidget {
                     child: Padding(
                       padding: const EdgeInsets.all(15.0),
                       child: imageUrl != null && imageUrl!.isNotEmpty
-                          ? (imageUrl!.toLowerCase().endsWith('.svg')
-                              ? SvgPicture.network(imageUrl!, fit: BoxFit.contain)
-                              : Image.network(imageUrl!, fit: BoxFit.contain))
+                          ? Image.network(
+                              imageUrl!,
+                              fit: BoxFit.contain,
+                              errorBuilder: (context, error, stackTrace) => const Icon(
+                                Icons.medication,
+                                size: 60,
+                                color: Color(0xFFBDC9C5),
+                              ),
+                            )
                           : const Icon(Icons.medication, size: 60, color: Color(0xFFBDC9C5)),
                     ),
                   ),

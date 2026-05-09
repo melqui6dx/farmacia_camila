@@ -105,6 +105,7 @@ export default function CatalogoFarmaceutico() {
   const [productoPaginaActiva, setProductoPaginaActiva] = useState(0);
   const [categoriasViewportWidth, setCategoriasViewportWidth] = useState(0);
   const [showAuthModal, setShowAuthModal] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
   const categoriasViewportRef = useRef(null);
   const busquedaRef = useRef(null);
   const detalleModalRef = useRef(null);
@@ -410,11 +411,61 @@ export default function CatalogoFarmaceutico() {
     cargarCarritoDesdeBackend();
   }, [cargarCarritoDesdeBackend]);
 
+  // Función para sincronizar carrito y navegar a checkout
+  const handleGoToCheckout = async () => {
+    if (cartItems.length === 0) return;
+    
+    setIsSyncing(true);
+    console.log("Sincronizando carrito con backend...");
+    
+    try {
+      // El backend ya está actualizado en cada agregar; aquí solo refrescamos estado.
+      const carritoData = await carritoService.listar();
+      const token = carritoData.invitado_token || carritoService.getToken();
+      const backendItems = Array.isArray(carritoData?.items) ? carritoData.items : [];
+      const itemsCheckout = backendItems.map((item) => ({
+        id: item.producto,
+        nombre_comercial: item.producto_nombre || item.producto,
+        precio_venta: Number(item.precio_unitario || 0),
+        imagen: "",
+        cantidad: Number(item.cantidad || 0),
+      }));
+      const subtotalCheckout = Number(carritoData?.subtotal || 0);
+      const totalCheckout = Number(carritoData?.total || 0);
+      
+      console.log("Carrito sincronizado. Token:", token);
+      
+      // Navegar a checkout con los datos y el token
+      navigate("/checkout", {
+        state: {
+          items: itemsCheckout,
+          subtotal: subtotalCheckout,
+          impuesto: 0,
+          total: totalCheckout,
+          carrito_token: token,
+        },
+      });
+    } catch (error) {
+      console.error("Error al sincronizar carrito:", error);
+      // Si falla, igual navegar pero sin token (mostrará error)
+      navigate("/checkout", {
+        state: {
+          items: cartItems,
+          subtotal: subtotalCarrito,
+          impuesto: impuestoCarrito,
+          total: totalCarrito,
+        },
+      });
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
   return (
     <section className="rounded-[28px] border border-sky-100 bg-white/97 p-5 shadow-2xl shadow-slate-200/60 sm:p-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h3 className="text-3xl font-black tracking-tight text-slate-900">Catalogo</h3>
+          <h3 className="text-3xl font-black tracking-tight text-slate-900">Catalogo de productos</h3>
           <p className="text-sm font-semibold text-slate-500">Categorias y subcategorias</p>
         </div>
         <div ref={busquedaRef} className="relative w-full max-w-[740px]">
@@ -710,18 +761,12 @@ export default function CatalogoFarmaceutico() {
               Pago en linea disponible solo con tarjeta de credito.
             </p>
             <Button
-              className="mt-2 h-11 w-full gap-1 bg-teal-700 text-base font-black hover:bg-teal-600"
-              onClick={() => navigate("/checkout", {
-                state: {
-                  items: cartItems,
-                  subtotal: subtotalCarrito,
-                  impuesto: impuestoCarrito,
-                  total: totalCarrito,
-                },
-              })}
+              className="mt-2 h-11 w-full gap-1 bg-teal-700 text-base font-black hover:bg-teal-600 disabled:opacity-50"
+              onClick={handleGoToCheckout}
+              disabled={isSyncing || cartItems.length === 0}
             >
-              <CartIcon className="h-4 w-4 text-teal-700" />
-              Completar venta
+              {isSyncing ? "Sincronizando..." : "Completar venta"}
+              <CartIcon className="h-4 w-4" />
             </Button>
           </div>
           </aside>

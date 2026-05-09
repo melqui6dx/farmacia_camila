@@ -30,8 +30,8 @@ INSTALLED_APPS = [
 ]
 
 MIDDLEWARE = [
+    "corsheaders.middleware.CorsMiddleware",  # ← PRIMERO (importante)
     "django.middleware.security.SecurityMiddleware",
-    "corsheaders.middleware.CorsMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
@@ -106,16 +106,48 @@ FRONTEND_VERIFY_EMAIL_URL = os.getenv(
     "http://localhost:5173/verify-email",
 )
 
+# ============================================================
+# CONFIGURACIÓN CORS COMPLETA
+# ============================================================
+# Orígenes permitidos
 CORS_ALLOWED_ORIGINS = [
-    origin.strip()
-    for origin in os.getenv("CORS_ALLOWED_ORIGINS", "http://localhost:5173,http://localhost:53400").split(",")
-    if origin.strip()
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
 ]
+
+# Permitir credenciales
 CORS_ALLOW_CREDENTIALS = True
 
-# En modo DEBUG, permitir todos los orígenes para facilitar desarrollo
+# Headers permitidos
+CORS_ALLOW_HEADERS = [
+    "accept",
+    "accept-encoding",
+    "authorization",
+    "content-type",
+    "dnt",
+    "origin",
+    "user-agent",
+    "x-csrftoken",
+    "x-requested-with",
+    "x-carrito-token",
+]
+
+# Métodos permitidos
+CORS_ALLOW_METHODS = [
+    "DELETE",
+    "GET",
+    "OPTIONS",
+    "PATCH",
+    "POST",
+    "PUT",
+]
+
+# En modo DEBUG, permitir todos los orígenes y headers (más permisivo)
 if DEBUG:
     CORS_ALLOW_ALL_ORIGINS = True
+    # No usar '*' porque CORS_ALLOW_HEADERS debe ser una lista
+    # Mantener la lista explícita
+# ============================================================
 
 AUTH_ACCESS_COOKIE_NAME = os.getenv("AUTH_ACCESS_COOKIE_NAME", "access_token")
 AUTH_REFRESH_COOKIE_NAME = os.getenv("AUTH_REFRESH_COOKIE_NAME", "refresh_token")
@@ -158,3 +190,9 @@ AUTH_LOGIN_LOCK_THRESHOLD = int(os.getenv("AUTH_LOGIN_LOCK_THRESHOLD", "5"))
 AUTH_LOGIN_LOCK_BASE_SEC = int(os.getenv("AUTH_LOGIN_LOCK_BASE_SEC", "60"))
 AUTH_LOGIN_LOCK_MAX_SEC = int(os.getenv("AUTH_LOGIN_LOCK_MAX_SEC", "900"))
 AUTH_LOGIN_FAILURE_TTL_SEC = int(os.getenv("AUTH_LOGIN_FAILURE_TTL_SEC", "86400"))
+
+# Stripe Configuration (modo pruebas)
+STRIPE_SECRET_KEY = os.getenv("STRIPE_SECRET_KEY", "")
+STRIPE_PUBLIC_KEY = os.getenv("STRIPE_PUBLIC_KEY", "")
+STRIPE_CURRENCY = os.getenv("STRIPE_CURRENCY", "BOB")
+STRIPE_WEBHOOK_SECRET = os.getenv("STRIPE_WEBHOOK_SECRET", "")

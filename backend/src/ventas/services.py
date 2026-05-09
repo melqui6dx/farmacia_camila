@@ -2,10 +2,16 @@
 
 from django.utils import timezone
 from django.db import transaction
+from django.conf import settings
 from clientes.models import RecetaMedica
 from inventarios.models import Inventario, MovimientoInventario, Producto
 
-from .models import DetalleVenta, Venta
+from .models import DetalleVenta, Venta, Factura
+
+import stripe  # ← NUEVO
+
+# Configurar Stripe
+stripe.api_key = settings.STRIPE_SECRET_KEY
 
 
 class VentaServiceError(Exception):
@@ -14,6 +20,40 @@ class VentaServiceError(Exception):
         self.code = code
 
 
+# ========== STRIPE SERVICES ==========
+def crear_payment_intent(total: Decimal, metadata: dict = None) -> dict:
+    """Crea un PaymentIntent en Stripe para modo pruebas"""
+    amount_cents = int(total * 100)
+    
+    intent = stripe.PaymentIntent.create(
+        amount=amount_cents,
+        currency=settings.STRIPE_CURRENCY.lower(),  # 'bob'
+        metadata=metadata or {},
+        payment_method_types=['card'],
+    )
+    
+    return {
+        'client_secret': intent.client_secret,
+        'payment_intent_id': intent.id,
+        'amount': str((Decimal(intent.amount) / Decimal('100')).quantize(Decimal('0.01'))),
+        'currency': intent.currency,
+    }
+
+
+def verificar_payment_intent(payment_intent_id: str) -> dict:
+    """Verifica el estado de un PaymentIntent"""
+    intent = stripe.PaymentIntent.retrieve(payment_intent_id)
+    
+    return {
+        'id': intent.id,
+        'status': intent.status,
+        'amount': (Decimal(intent.amount) / Decimal('100')).quantize(Decimal('0.01')),
+        'currency': intent.currency,
+        'metadata': intent.metadata,
+    }
+
+
+# ========== VENTA SERVICE ==========
 @transaction.atomic
 def crear_venta_service(
     *,
@@ -25,7 +65,15 @@ def crear_venta_service(
     descuento=Decimal("0"),
     impuesto=Decimal("0"),
     observacion="",
+    datos_factura=None,
+    stripe_payment_intent_id=None,
 ):
+    """
+    Crea una venta con todos sus detalles, movimientos de inventario y factura.
+    
+    Parámetros:
+    - datos_factura: dict con 'nombre_cliente', 'email_cliente', 'nit_ci' (opcional)
+    """
     if origen not in {"fisica", "online"}:
         raise VentaServiceError("Origen de venta invalido.", code="origen_invalido")
     if not items:
@@ -132,6 +180,7 @@ def crear_venta_service(
         descuento=descuento,
         impuesto=impuesto,
         total=total_venta,
+        stripe_payment_intent_id=stripe_payment_intent_id,
         observacion=observacion,
     )
 
@@ -150,5 +199,26 @@ def crear_venta_service(
             usuario=vendedor,
             observacion=f"Salida por venta #{venta.id}",
         )
+
+    # ========== CREAR FACTURA ==========
+    if datos_factura:
+        nombre_cliente = datos_factura.get('nombre_cliente', cliente.nombres or 'Cliente')
+        email_cliente = datos_factura.get('email_cliente', cliente.email or 'cliente@email.com')
+        nit_ci = datos_factura.get('nit_ci', '')
+        tipo_factura = datos_factura.get('tipo', 'simple')
+    else:
+        nombre_cliente = cliente.nombres if cliente.nombres else 'Cliente'
+        email_cliente = cliente.email if cliente.email else 'cliente@email.com'
+        nit_ci = ''
+        tipo_factura = 'simple'
+    
+    Factura.objects.create(
+        venta=venta,
+        tipo=tipo_factura,
+        nombre_cliente=nombre_cliente,
+        email_cliente=email_cliente,
+        nit_ci=nit_ci,
+    )
+    # ==================================
 
     return venta

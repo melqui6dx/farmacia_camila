@@ -124,6 +124,52 @@ Dentro de `mobile/`:
 flutter create .
 flutter run
 ```
+
+## 5) Probar pagos con Stripe en local
+
+### Backend con Docker
+
+1. Copia `.env.example` a `.env` y deja tus claves de prueba de Stripe.
+2. Levanta la infraestructura:
+
+```bash
+docker compose up -d --build
+docker compose exec backend python manage.py migrate
+```
+
+### Webhook local opcional
+
+Si quieres probar el webhook local, instala Stripe CLI en tu PC y ejecuta:
+
+```bash
+stripe login
+stripe listen --events payment_intent.succeeded,payment_intent.payment_failed --forward-to http://localhost:8000/api/ventas/stripe/webhook/
+```
+
+La CLI te mostrará un secreto `whsec_...`; colócalo en `STRIPE_WEBHOOK_SECRET` y recrea el backend.
+
+### Flutter mobile
+
+En Android emulador:
+
+```bash
+flutter run --dart-define=API_BASE_URL=http://10.0.2.2:8000 --dart-define=STRIPE_PUBLISHABLE_KEY=pk_test_xxxxxxxxxxxxxxxxxxxx --dart-define=STRIPE_MERCHANT_DISPLAY_NAME="Farmacia Bibosi"
+```
+
+Si usas un teléfono físico, cambia `API_BASE_URL` por la IP LAN de tu PC.
+
+### Tarjeta de prueba
+
+Usa `4242 4242 4242 4242`, cualquier fecha futura, cualquier CVC.
+
+### Lo que debes ver
+
+1. PaymentSheet abre en el móvil.
+2. El pago se confirma.
+3. El carrito se vacía.
+4. Se crea la factura.
+5. La factura aparece en `Mis Pagos`.
+
 comando para crear apps con docker:
 
 docker compose exec backend python src/manage.py startapp inventario
@@ -132,4 +178,8 @@ docker compose exec backend python src/manage.py startapp inventario
 
 - No guardar credenciales reales en el README.
 - Para desarrollo local, usar usuarios de prueba en `.env` o en seeds internas.
+
+# Ver desde el contenedor backend
+docker compose exec backend python -c "import os; print('SECRET:', os.environ.get('STRIPE_SECRET_KEY', 'NO'))"
+docker compose exec backend python -c "import os; print('PUBLIC:', os.environ.get('STRIPE_PUBLIC_KEY', 'NO'))"
 

@@ -34,6 +34,14 @@ def _validar_token_invitado(request, carrito):
     return None
 
 
+def _asegurar_token_carrito(carrito, usuario):
+    """Asegura que el carrito tenga un token si es de invitado"""
+    if not usuario and not carrito.invitado_token:
+        carrito.ensure_guest_token()
+        carrito.save(update_fields=["invitado_token"])
+    return carrito
+
+
 @api_view(["POST"])
 @permission_classes([AllowAny])
 def carrito_agregar(request):
@@ -45,6 +53,9 @@ def carrito_agregar(request):
     
     try:
         carrito = obtener_o_crear_carrito_activo(usuario=usuario)
+        # Asegurar token para invitados
+        carrito = _asegurar_token_carrito(carrito, usuario)
+        
         agregar_item_carrito(carrito=carrito, producto_id=data["producto_id"], cantidad=data["cantidad"])
     except CarritoServiceError as exc:
         return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
@@ -92,10 +103,15 @@ def carrito_listar(request):
     
     if not carrito:
         carrito = obtener_o_crear_carrito_activo(usuario=usuario)
+        # Asegurar token para invitados recién creados
+        carrito = _asegurar_token_carrito(carrito, usuario)
 
-    token_denegado = _validar_token_invitado(request, carrito)
-    if token_denegado:
-        return token_denegado
+    # Solo validar token si el usuario está autenticado
+    # Para invitados, no validamos en GET porque el token aún no está en el header
+    if usuario:
+        token_denegado = _validar_token_invitado(request, carrito)
+        if token_denegado:
+            return token_denegado
 
     payload = CarritoSerializer(carrito).data
     payload.update(calcular_totales_carrito(carrito))

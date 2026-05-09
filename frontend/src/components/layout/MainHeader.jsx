@@ -109,41 +109,7 @@ export default function MainHeader({ isAuthenticated, user, onLoginClick, onRegi
           </Button>
         </div>
       </div>
-      <div className="mt-4 flex flex-wrap items-center gap-3">
-        <nav className="hidden lg:flex flex-wrap gap-2">
-          {navItems.slice(1).map((item) => (
-            <button
-              key={item}
-              className="rounded-full border border-sky-100 bg-sky-50 px-3 py-1 text-xs font-semibold text-sky-700 transition hover:border-sky-300"
-              type="button"
-            >
-              {item}
-            </button>
-          ))}
-        </nav>
-        <div className="relative min-w-[220px] flex-1 lg:max-w-sm">
-          <SearchIcon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-sky-500" />
-          <Input
-            className="border-sky-100 bg-sky-50/40 pl-9 h-10 focus:border-sky-300 focus:ring-sky-100"
-            placeholder="Buscar medicamentos, marcas..."
-            type="text"
-          />
-        </div>
-        <Button variant="secondary" size="sm" className="border-sky-100 text-sky-700 hover:border-sky-200 hover:bg-sky-50">
-          Ver ofertas
-        </Button>
-      </div>
-      <nav className="mt-4 flex flex-wrap gap-2 lg:hidden">
-        {navItems.map((item) => (
-          <button
-            key={item}
-            className="rounded-full border border-sky-100 bg-sky-50 px-3 py-1 text-xs font-semibold text-sky-700 transition hover:border-sky-300"
-            type="button"
-          >
-            {item}
-          </button>
-        ))}
-      </nav>
+      
     </header>
   );
 }

@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_stripe/flutter_stripe.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import '../../core/config/app_config.dart';
 import '../../core/auth/auth_session_manager.dart';
 import 'data/cart_service.dart';
+import '../payments/data/payment_service.dart';
 
 class CartTab extends StatefulWidget {
   const CartTab({super.key});
@@ -13,6 +16,7 @@ class CartTab extends StatefulWidget {
 
 class _CartTabState extends State<CartTab> {
   final CartService _cartService = CartService();
+  final PaymentService _paymentService = PaymentService();
 
   List<Map<String, dynamic>> _cartItems = [];
   bool _loading = true;
@@ -101,30 +105,81 @@ class _CartTabState extends State<CartTab> {
     }
   }
 
-  Future<void> _confirmarCompra() async {
+  Future<void> _pagarConStripe() async {
+    if (AppConfig.stripePublishableKey.trim().isEmpty) {
+      _showError('Stripe no esta configurado. Define STRIPE_PUBLISHABLE_KEY para mobile.');
+      return;
+    }
+
+    final datosFactura = await _solicitarDatosFactura();
+    if (datosFactura == null) {
+      return;
+    }
+
     setState(() => _processing = true);
 
     try {
-      final token = await _getAccessToken();
-      final data = await _cartService.confirmar(
-        accessToken: token,
-        observacion: 'Compra realizada desde app móvil',
+      final accessToken = await _getAccessToken();
+      final carritoToken = await _cartService.getGuestCartToken();
+
+      final intentData = await _paymentService.crearIntentPago(
+        total: _total,
+        accessToken: accessToken,
+        metadata: {
+          if (carritoToken != null && carritoToken.isNotEmpty) 'carrito_token': carritoToken,
+          'nombre_cliente': datosFactura['nombre_cliente']?.toString() ?? '',
+          'email_cliente': datosFactura['email_cliente']?.toString() ?? '',
+          'telefono': datosFactura['telefono']?.toString() ?? '',
+          'nit_ci': datosFactura['nit_ci']?.toString() ?? '',
+        },
       );
+
+      final clientSecret = intentData['client_secret']?.toString() ?? '';
+      final paymentIntentId = intentData['payment_intent_id']?.toString() ?? '';
+      if (clientSecret.isEmpty || paymentIntentId.isEmpty) {
+        throw const PaymentServiceException('Respuesta incompleta al crear el intent de pago.');
+      }
+
+      await _paymentService.abrirPaymentSheet(clientSecret: clientSecret);
+
+      final data = await _paymentService.confirmarPagoVenta(
+        paymentIntentId: paymentIntentId,
+        carritoToken: carritoToken,
+        accessToken: accessToken,
+        datosFactura: datosFactura,
+      );
+
+      await _cartService.clearGuestCartToken();
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Compra confirmada. Venta #${data['venta']?['id'] ?? ''} ✅'),
+          content: Text('Pago confirmado. Factura ${data['factura']?['numero'] ?? ''} ✅'),
           backgroundColor: const Color(0xFF006A5E),
           behavior: SnackBarBehavior.floating,
         ),
       );
       await _loadCartItems();
+    } on StripeException catch (e) {
+      final msg = e.error.localizedMessage ?? 'Pago cancelado por el usuario.';
+      _showError(msg);
     } catch (e) {
-      _showError('No se pudo confirmar la compra: $e');
+      _showError('No se pudo completar el pago: $e');
     } finally {
       if (mounted) setState(() => _processing = false);
     }
+  }
+
+  Future<Map<String, dynamic>?> _solicitarDatosFactura() async {
+    return showModalBottomSheet<Map<String, dynamic>>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
+      ),
+      builder: (context) => const _DatosFacturaBottomSheet(),
+    );
   }
 
   void _showError(String message) {
@@ -298,7 +353,7 @@ class _CartTabState extends State<CartTab> {
               width: double.infinity,
               height: 55,
               child: ElevatedButton(
-                onPressed: _cartItems.isEmpty || _processing ? null : _confirmarCompra,
+                onPressed: _cartItems.isEmpty || _processing ? null : _pagarConStripe,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF006A5E),
                   disabledBackgroundColor: const Color(0xFFE0E3E1),
@@ -307,7 +362,7 @@ class _CartTabState extends State<CartTab> {
                 ),
                 child: _processing
                     ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                    : Text('Finalizar Compra', style: GoogleFonts.manrope(fontSize: 18, fontWeight: FontWeight.w700, color: Colors.white)),
+                    : Text('Pagar con Stripe', style: GoogleFonts.manrope(fontSize: 18, fontWeight: FontWeight.w700, color: Colors.white)),
               ),
             ),
           ],
@@ -325,6 +380,120 @@ class _CartTabState extends State<CartTab> {
         const SizedBox(height: 16),
         Center(child: Text('Tu carrito está vacío', style: GoogleFonts.manrope(fontSize: 18, color: Colors.grey))),
       ],
+    );
+  }
+}
+
+class _DatosFacturaBottomSheet extends StatefulWidget {
+  const _DatosFacturaBottomSheet();
+
+  @override
+  State<_DatosFacturaBottomSheet> createState() => _DatosFacturaBottomSheetState();
+}
+
+class _DatosFacturaBottomSheetState extends State<_DatosFacturaBottomSheet> {
+  final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
+  final TextEditingController _nombreController = TextEditingController();
+  final TextEditingController _emailController = TextEditingController();
+  final TextEditingController _telefonoController = TextEditingController();
+  final TextEditingController _nitCiController = TextEditingController();
+
+  @override
+  void dispose() {
+    _nombreController.dispose();
+    _emailController.dispose();
+    _telefonoController.dispose();
+    _nitCiController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      top: false,
+      child: AnimatedPadding(
+        duration: const Duration(milliseconds: 150),
+        curve: Curves.easeOut,
+        padding: EdgeInsets.only(
+          left: 20,
+          right: 20,
+          top: 20,
+          bottom: MediaQuery.of(context).viewInsets.bottom + 20,
+        ),
+        child: SingleChildScrollView(
+          child: Form(
+            key: _formKey,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Datos de facturacion',
+                  style: GoogleFonts.manrope(fontWeight: FontWeight.w800, fontSize: 20),
+                ),
+                const SizedBox(height: 14),
+                TextFormField(
+                  controller: _nombreController,
+                  decoration: const InputDecoration(labelText: 'Nombre completo *'),
+                  validator: (value) {
+                    if (value == null || value.trim().isEmpty) {
+                      return 'Nombre requerido';
+                    }
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 10),
+                TextFormField(
+                  controller: _emailController,
+                  keyboardType: TextInputType.emailAddress,
+                  decoration: const InputDecoration(labelText: 'Email *'),
+                  validator: (value) {
+                    final text = value?.trim() ?? '';
+                    if (text.isEmpty) return 'Email requerido';
+                    if (!text.contains('@')) return 'Email invalido';
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 10),
+                TextFormField(
+                  controller: _telefonoController,
+                  keyboardType: TextInputType.phone,
+                  decoration: const InputDecoration(labelText: 'Telefono'),
+                ),
+                const SizedBox(height: 10),
+                TextFormField(
+                  controller: _nitCiController,
+                  decoration: const InputDecoration(labelText: 'NIT/CI (opcional)'),
+                ),
+                const SizedBox(height: 18),
+                SizedBox(
+                  width: double.infinity,
+                  height: 52,
+                  child: ElevatedButton(
+                    onPressed: () {
+                      if (!_formKey.currentState!.validate()) return;
+                      Navigator.of(context).pop({
+                        'nombre_cliente': _nombreController.text.trim(),
+                        'email_cliente': _emailController.text.trim(),
+                        'telefono': _telefonoController.text.trim(),
+                        'nit_ci': _nitCiController.text.trim(),
+                      });
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF006A5E),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                    ),
+                    child: Text(
+                      'Continuar al pago',
+                      style: GoogleFonts.manrope(color: Colors.white, fontWeight: FontWeight.w700),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
