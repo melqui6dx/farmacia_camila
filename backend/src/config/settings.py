@@ -4,6 +4,10 @@ from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
+# Directorio para backups externos (montado desde docker-compose)
+BACKUP_DIR = '/app/backups'
+
+# Seguridad básica
 SECRET_KEY = os.getenv("DJANGO_SECRET_KEY", "change-me")
 DEBUG = os.getenv("DJANGO_DEBUG", "True").lower() == "true"
 
@@ -13,6 +17,7 @@ ALLOWED_HOSTS = [
     if h.strip()
 ]
 
+# Aplicaciones instaladas
 INSTALLED_APPS = [
     "django.contrib.admin",
     "django.contrib.auth",
@@ -20,18 +25,22 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
+    # Terceros
     "corsheaders",
     "rest_framework",
-    "core",
-    "clientes",
-    "ventas",
-    "carrito",
-    "inventarios",
+    # Apps propias
+    "core",               # Autenticación y lógica compartida
+    "inventarios",        # Gestión de inventario
+    "backup",             # Respaldos de la base de datos
+    "clientes",           # Gestión de clientes
+    "ventas",             # Módulo de ventas
+    "carrito",            # Carrito de compras
+    "predicciones",       # Predicciones con Machine Learning
 ]
 
 MIDDLEWARE = [
-    "corsheaders.middleware.CorsMiddleware",  # ← PRIMERO (importante)
     "django.middleware.security.SecurityMiddleware",
+    "corsheaders.middleware.CorsMiddleware",       # CORS lo más arriba posible
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
@@ -60,6 +69,7 @@ TEMPLATES = [
 WSGI_APPLICATION = "config.wsgi.application"
 ASGI_APPLICATION = "config.asgi.application"
 
+# Base de datos PostgreSQL (configurada por variables de entorno)
 DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.postgresql",
@@ -71,6 +81,7 @@ DATABASES = {
     }
 }
 
+# Validación de contraseñas
 AUTH_PASSWORD_VALIDATORS = [
     {"NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"},
     {"NAME": "django.contrib.auth.password_validation.MinimumLengthValidator"},
@@ -78,11 +89,13 @@ AUTH_PASSWORD_VALIDATORS = [
     {"NAME": "django.contrib.auth.password_validation.NumericPasswordValidator"},
 ]
 
+# Internacionalización
 LANGUAGE_CODE = "es-es"
 TIME_ZONE = "UTC"
 USE_I18N = True
 USE_TZ = True
 
+# Archivos estáticos y media
 STATIC_URL = "static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
 MEDIA_URL = "/media/"
@@ -90,8 +103,8 @@ MEDIA_ROOT = BASE_DIR / "media"
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
+# Configuración de correo electrónico
 PASSWORD_RESET_TIMEOUT = int(os.getenv("DJANGO_PASSWORD_RESET_TIMEOUT", "900"))
-
 EMAIL_BACKEND = os.getenv(
     "DJANGO_EMAIL_BACKEND",
     "django.core.mail.backends.console.EmailBackend",
@@ -109,10 +122,11 @@ FRONTEND_VERIFY_EMAIL_URL = os.getenv(
 # ============================================================
 # CONFIGURACIÓN CORS COMPLETA
 # ============================================================
-# Orígenes permitidos
+# Orígenes permitidos (desde variable de entorno o valor por defecto)
 CORS_ALLOWED_ORIGINS = [
-    "http://localhost:5173",
-    "http://127.0.0.1:5173",
+    origin.strip()
+    for origin in os.getenv("CORS_ALLOWED_ORIGINS", "http://localhost:5173").split(",")
+    if origin.strip()
 ]
 
 # Permitir credenciales
@@ -142,13 +156,15 @@ CORS_ALLOW_METHODS = [
     "PUT",
 ]
 
-# En modo DEBUG, permitir todos los orígenes y headers (más permisivo)
+# En modo DEBUG, permitir todos los orígenes (útil para desarrollo)
 if DEBUG:
     CORS_ALLOW_ALL_ORIGINS = True
-    # No usar '*' porque CORS_ALLOW_HEADERS debe ser una lista
-    # Mantener la lista explícita
+
+# Orígenes confiables para CSRF (necesario si se usan cookies de sesión)
+CSRF_TRUSTED_ORIGINS = ['http://localhost:5173']
 # ============================================================
 
+# Configuración de cookies JWT
 AUTH_ACCESS_COOKIE_NAME = os.getenv("AUTH_ACCESS_COOKIE_NAME", "access_token")
 AUTH_REFRESH_COOKIE_NAME = os.getenv("AUTH_REFRESH_COOKIE_NAME", "refresh_token")
 AUTH_ACCESS_COOKIE_AGE = int(os.getenv("AUTH_ACCESS_COOKIE_AGE", "900"))
@@ -156,6 +172,7 @@ AUTH_REFRESH_COOKIE_AGE = int(os.getenv("AUTH_REFRESH_COOKIE_AGE", "604800"))
 AUTH_COOKIE_SECURE = os.getenv("AUTH_COOKIE_SECURE", "False").lower() == "true"
 AUTH_COOKIE_SAMESITE = os.getenv("AUTH_COOKIE_SAMESITE", "Lax")
 
+# Django REST Framework
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": (
         "core.authentication.CookieOrHeaderJWTAuthentication",
@@ -167,6 +184,7 @@ REST_FRAMEWORK = {
     "PAGE_SIZE": 8,
 }
 
+# Simple JWT
 SIMPLE_JWT = {
     "ACCESS_TOKEN_LIFETIME": timedelta(seconds=AUTH_ACCESS_COOKIE_AGE),
     "REFRESH_TOKEN_LIFETIME": timedelta(seconds=AUTH_REFRESH_COOKIE_AGE),
@@ -174,6 +192,7 @@ SIMPLE_JWT = {
     "BLACKLIST_AFTER_ROTATION": False,
 }
 
+# Caché
 CACHES = {
     "default": {
         "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
@@ -181,18 +200,38 @@ CACHES = {
     }
 }
 
+# Límites de tasa para autenticación
 AUTH_RATE_LIMIT_WINDOW_SEC = int(os.getenv("AUTH_RATE_LIMIT_WINDOW_SEC", "60"))
 AUTH_LOGIN_MAX_REQUESTS_PER_IP = int(os.getenv("AUTH_LOGIN_MAX_REQUESTS_PER_IP", "20"))
 AUTH_REGISTER_MAX_REQUESTS_PER_IP = int(os.getenv("AUTH_REGISTER_MAX_REQUESTS_PER_IP", "10"))
 AUTH_RESET_MAX_REQUESTS_PER_IP = int(os.getenv("AUTH_RESET_MAX_REQUESTS_PER_IP", "10"))
 
+# Bloqueo progresivo en login
 AUTH_LOGIN_LOCK_THRESHOLD = int(os.getenv("AUTH_LOGIN_LOCK_THRESHOLD", "5"))
 AUTH_LOGIN_LOCK_BASE_SEC = int(os.getenv("AUTH_LOGIN_LOCK_BASE_SEC", "60"))
 AUTH_LOGIN_LOCK_MAX_SEC = int(os.getenv("AUTH_LOGIN_LOCK_MAX_SEC", "900"))
 AUTH_LOGIN_FAILURE_TTL_SEC = int(os.getenv("AUTH_LOGIN_FAILURE_TTL_SEC", "86400"))
 
-# Stripe Configuration (modo pruebas)
+# ============================================================
+# STRIPE CONFIGURATION (modo pruebas)
+# ============================================================
 STRIPE_SECRET_KEY = os.getenv("STRIPE_SECRET_KEY", "")
 STRIPE_PUBLIC_KEY = os.getenv("STRIPE_PUBLIC_KEY", "")
 STRIPE_CURRENCY = os.getenv("STRIPE_CURRENCY", "BOB")
 STRIPE_WEBHOOK_SECRET = os.getenv("STRIPE_WEBHOOK_SECRET", "")
+
+
+
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'handlers': {
+        'console': {
+            'class': 'logging.StreamHandler',
+        },
+    },
+    'root': {
+        'handlers': ['console'],
+        'level': 'DEBUG',
+    },
+}

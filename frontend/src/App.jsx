@@ -1,11 +1,11 @@
 import { lazy, Suspense } from "react";
+import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import HomePage from "./pages/HomePage";
 import { AuthProvider } from "./context/AuthContext";
 import ProtectedRoute from "./components/routing/ProtectedRoute";
 import AdminRoute from "./components/routing/AdminRoute";
 import POSRoute from "./components/routing/POSRoute";
 import PageLoader from "./components/routing/PageLoader";
-import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 
 // Lazy-loaded pages
 const AdminDashboardPage = lazy(() => import("./pages/AdminDashboardPage"));
@@ -17,15 +17,15 @@ const AdminLaboratariosPage = lazy(() => import("./pages/admin/AdminLaboratorios
 const AdminCategoriasPage = lazy(() => import("./pages/admin/AdminCategoriasPage"));
 const AdminClientesPage = lazy(() => import("./pages/admin/AdminClientesPage"));
 const AdminBitacoraPage = lazy(() => import("./pages/admin/AdminBitacoraPage"));
+const AdminBackupsPage = lazy(() => import("./pages/admin/AdminBackupsPage"));
+const AdminPrediccionesPage = lazy(() => import("./pages/admin/AdminPrediccionesPage"));
 const ClientePerfilPage = lazy(() => import("./pages/ClientePerfilPage"));
 const LoginPage = lazy(() => import("./pages/auth/LoginPage"));
 const RegisterPage = lazy(() => import("./pages/auth/RegisterPage"));
 const ForgotPasswordPage = lazy(() => import("./pages/auth/ForgotPasswordPage"));
 const ResetPasswordPage = lazy(() => import("./pages/auth/ResetPasswordPage"));
 const VerifyEmailPage = lazy(() => import("./pages/auth/VerifyEmailPage"));
-
 const POSPage = lazy(() => import("./pages/pos/POSPage"));
-
 const CheckoutPage = lazy(() => import("./pages/CheckoutPage"));
 
 function App() {
@@ -34,36 +34,43 @@ function App() {
       <AuthProvider>
         <Suspense fallback={<PageLoader />}>
           <Routes>
-        <Route path="/" element={<HomePage />} />
-        <Route path="/login" element={<LoginPage />} />
-        <Route path="/register" element={<RegisterPage />} />
-        <Route path="/forgot-password" element={<ForgotPasswordPage />} />
-        <Route path="/reset-password" element={<ResetPasswordPage />} />
-        <Route path="/verify-email" element={<VerifyEmailPage />} />
-        <Route path="/checkout" element={<CheckoutPage />} />
+            {/* Rutas públicas */}
+            <Route path="/" element={<HomePage />} />
+            <Route path="/login" element={<LoginPage />} />
+            <Route path="/register" element={<RegisterPage />} />
+            <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+            <Route path="/reset-password" element={<ResetPasswordPage />} />
+            <Route path="/verify-email" element={<VerifyEmailPage />} />
+            <Route path="/checkout" element={<CheckoutPage />} />
 
-        <Route element={<ProtectedRoute />}>
-          <Route path="/perfil" element={<ClientePerfilPage />} />
-        </Route>
+            {/* Rutas protegidas para clientes */}
+            <Route element={<ProtectedRoute />}>
+              <Route path="/perfil" element={<ClientePerfilPage />} />
+            </Route>
 
-        <Route element={<AdminRoute />}>
-          <Route path="/admin" element={<Navigate to="/admin/resumen" replace />} />
-          <Route path="/admin/resumen" element={<AdminDashboardPage />} />
-          <Route path="/admin/usuarios" element={<AdminUsersPage />} />
-          <Route path="/admin/roles-permisos" element={<AdminRolesPermisosPage />} />
-          <Route path="/admin/inventarios" element={<AdminInventariosPage />} />
-          <Route path="/admin/productos" element={<AdminProductosPage />} />
-          <Route path="/admin/categorias" element={<AdminCategoriasPage />} />
-          <Route path="/admin/laboratorios" element={<AdminLaboratariosPage />} />
-          <Route path="/admin/clientes" element={<AdminClientesPage />} />
-          <Route path="/admin/bitacora" element={<AdminBitacoraPage />} />
-        </Route>
+            {/* Rutas de administración */}
+            <Route element={<AdminRoute />}>
+              <Route path="/admin" element={<Navigate to="/admin/resumen" replace />} />
+              <Route path="/admin/resumen" element={<AdminDashboardPage />} />
+              <Route path="/admin/usuarios" element={<AdminUsersPage />} />
+              <Route path="/admin/roles-permisos" element={<AdminRolesPermisosPage />} />
+              <Route path="/admin/inventarios" element={<AdminInventariosPage />} />
+              <Route path="/admin/productos" element={<AdminProductosPage />} />
+              <Route path="/admin/categorias" element={<AdminCategoriasPage />} />
+              <Route path="/admin/laboratorios" element={<AdminLaboratariosPage />} />
+              <Route path="/admin/clientes" element={<AdminClientesPage />} />
+              <Route path="/admin/bitacora" element={<AdminBitacoraPage />} />
+              <Route path="/admin/backups" element={<AdminBackupsPage />} />
+              <Route path="/admin/predicciones" element={<AdminPrediccionesPage />} />
+            </Route>
 
-        <Route element={<POSRoute />}>
-          <Route path="/pos" element={<POSPage />} />
-        </Route>
+            {/* Punto de venta (POS) */}
+            <Route element={<POSRoute />}>
+              <Route path="/pos" element={<POSPage />} />
+            </Route>
 
-        <Route path="*" element={<Navigate to="/" replace />} />
+            {/* Ruta comodín */}
+            <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </Suspense>
       </AuthProvider>

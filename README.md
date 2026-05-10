@@ -72,7 +72,10 @@ Crear superusuario:
 ```bash
 docker compose exec backend python manage.py createsuperuser
 ```
-
+crear historias de ventas
+```bash
+docker compose exec backend python manage.py seed_ventas_historicas_fijo
+```
 Crear productos
 ```bash
 docker compose exec backend python manage.py seed_productos

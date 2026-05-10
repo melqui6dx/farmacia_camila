@@ -263,3 +263,60 @@ export function FilterIcon({ className }) {
     </BaseIcon>
   );
 }
+
+export function DatabaseIcon({ className }) {
+  return (
+    <BaseIcon className={className}>
+      <ellipse cx="12" cy="6" rx="8" ry="3" />
+      <path d="M4 6v6c0 1.7 3.6 3 8 3s8-1.3 8-3V6" />
+      <path d="M4 12v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6" />
+    </BaseIcon>
+  );
+}
+
+export function SaveIcon({ className }) {
+  return (
+    <BaseIcon className={className}>
+      <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
+      <polyline points="17 21 17 13 7 13 7 21" />
+      <polyline points="7 3 7 8 15 8" />
+    </BaseIcon>
+  );
+}
+
+export function LoaderIcon({ className }) {
+  return (
+    <BaseIcon className={className}>
+      <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" />
+    </BaseIcon>
+  );
+}
+
+export function CheckCircleIcon({ className }) {
+  return (
+    <BaseIcon className={className}>
+      <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+      <polyline points="22 4 12 14.01 9 11.01" />
+    </BaseIcon>
+  );
+}
+
+export function AlertTriangleIcon({ className }) {
+  return (
+    <BaseIcon className={className}>
+      <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+      <line x1="12" y1="9" x2="12" y2="13" />
+      <line x1="12" y1="17" x2="12.01" y2="17" />
+    </BaseIcon>
+  );
+}
+
+export function HistoryIcon({ className }) {
+  return (
+    <BaseIcon className={className}>
+      <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+      <path d="M3 3v5h5" />
+      <path d="M12 7v5l4 2" />
+    </BaseIcon>
+  );
+}

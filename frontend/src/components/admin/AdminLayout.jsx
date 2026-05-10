@@ -13,6 +13,7 @@ import {
   ShieldIcon,
   UserIcon,
   UsersGroupIcon,
+  SaveIcon,                     // ← Para la sección de backups
 } from "../ui/Icons";
 import { useOutsideClick } from "../../hooks/useOutsideClick";
 import { useAuth } from "../../context/AuthContext";
@@ -134,6 +135,7 @@ export default function AdminLayout({ activeSection, setActiveSection, currentUs
     return value.slice(0, 2).toUpperCase();
   }, [currentUser, fullName]);
 
+  // Mapa de iconos: incluye POS y backups
   const iconMap = {
     dashboard: ChartBarIcon,
     orders: ClipboardListIcon,
@@ -146,7 +148,8 @@ export default function AdminLayout({ activeSection, setActiveSection, currentUs
     reports: ChartBarIcon,
     finance: DollarIcon,
     settings: CogIcon,
-    pos: DollarIcon,
+    pos: DollarIcon,            // ← Sección de punto de venta
+    backup: SaveIcon,           // ← Sección de backups
   };
 
   const toggleSidebar = () => {

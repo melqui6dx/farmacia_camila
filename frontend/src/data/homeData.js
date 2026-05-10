@@ -1,5 +1,12 @@
 export const navItems = [
- 
+  "Inicio",
+  "Medicamentos",
+  "Cuidado personal",
+  "Dermocosmetica",
+  "Promociones",
+  "Recetas",
+  "Bienestar",
+  "Contacto",
 ];
 
 export const promoBlocks = [
@@ -17,7 +24,7 @@ export const promoBlocks = [
   },
 ];
 
-export const popularBrands = [];
+export const popularBrands = ["Bayer", "Bagó", "Inti", "Vita", "Isdin", "La Roche"];
 
 export const quickActions = [
   {

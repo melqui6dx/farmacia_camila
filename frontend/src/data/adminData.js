@@ -31,4 +31,6 @@ export const adminSections = [
   { id: "customers", label: "Clientes", icon: "customers", path: "/admin/clientes", requiredPermission: "clientes.ver" },
   { id: "bitacora", label: "Bitácora", icon: "reports", path: "/admin/bitacora", requiredPermission: "usuarios.gestionar" },
   { id: "roles-permisos", label: "Roles y permisos", icon: "settings", path: "/admin/roles-permisos", requiredPermission: "usuarios.gestionar" },
+  { id: "backups", label: "Backups", icon: "save", path: "/admin/backups", requiredPermission: null },
+  { id: "predicciones", label: "Predicciones", icon: "reports", path: "/admin/predicciones", requiredPermission: "predicciones.ver" },
 ];
