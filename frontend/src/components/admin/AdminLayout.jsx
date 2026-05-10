@@ -110,6 +110,12 @@ export default function AdminLayout({ activeSection, setActiveSection, currentUs
   }, [isInventorySectionActive]);
 
   useEffect(() => {
+    if (location.pathname === "/admin/reportes") {
+      setIsSidebarCollapsed(true);
+    }
+  }, [location.pathname]);
+
+  useEffect(() => {
     if (typeof window !== "undefined") {
       window.localStorage.setItem("admin-sidebar-collapsed", String(isSidebarCollapsed));
     }

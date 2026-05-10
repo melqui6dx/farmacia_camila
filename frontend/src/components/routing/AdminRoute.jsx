@@ -14,6 +14,7 @@ export default function AdminRoute() {
     hasPermission("inventario.ver") ||
     hasPermission("pedidos.ver") ||
     hasPermission("ventas.ver") ||
+    hasPermission("reportes.ver") ||
     hasPermission("clientes.ver");
 
   if (loading) {

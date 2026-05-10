@@ -29,6 +29,7 @@ export const adminSections = [
   { id: "pos", label: "POS", icon: "pos", path: "/pos", requiredPermission: "ventas.gestionar" },
   { id: "inventory", label: "Inventario", icon: "inventory", path: "/admin/inventarios", requiredPermission: "inventario.ver" },
   { id: "customers", label: "Clientes", icon: "customers", path: "/admin/clientes", requiredPermission: "clientes.ver" },
+  { id: "reports", label: "Reportes", icon: "reports", path: "/admin/reportes", requiredPermission: "reportes.ver" },
   { id: "bitacora", label: "Bitácora", icon: "reports", path: "/admin/bitacora", requiredPermission: "usuarios.gestionar" },
   { id: "roles-permisos", label: "Roles y permisos", icon: "settings", path: "/admin/roles-permisos", requiredPermission: "usuarios.gestionar" },
   { id: "backups", label: "Backups", icon: "save", path: "/admin/backups", requiredPermission: null },

@@ -2,7 +2,13 @@ import os
 from datetime import timedelta
 from pathlib import Path
 
+from dotenv import load_dotenv
+
 BASE_DIR = Path(__file__).resolve().parent.parent
+ROOT_DIR = BASE_DIR.parent.parent
+
+load_dotenv(ROOT_DIR / ".env")
+load_dotenv(BASE_DIR.parent / ".env")
 
 # Directorio para backups externos (montado desde docker-compose)
 BACKUP_DIR = '/app/backups'
@@ -36,6 +42,7 @@ INSTALLED_APPS = [
     "ventas",             # Módulo de ventas
     "carrito",            # Carrito de compras
     "predicciones",       # Predicciones con Machine Learning
+    "reportes",
 ]
 
 MIDDLEWARE = [
@@ -220,6 +227,10 @@ STRIPE_PUBLIC_KEY = os.getenv("STRIPE_PUBLIC_KEY", "")
 STRIPE_CURRENCY = os.getenv("STRIPE_CURRENCY", "BOB")
 STRIPE_WEBHOOK_SECRET = os.getenv("STRIPE_WEBHOOK_SECRET", "")
 
+# Gemini reports assistant
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
+GEMINI_REPORTS_MODEL = os.getenv("GEMINI_REPORTS_MODEL", "gemini-3.1-flash-lite")
+GEMINI_AUDIO_MODEL = os.getenv("GEMINI_AUDIO_MODEL", GEMINI_REPORTS_MODEL)
 
 
 LOGGING = {

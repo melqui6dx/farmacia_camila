@@ -1,0 +1,50 @@
+2026-05-09
+
+Contexto:
+- A partir de esta fecha el trabajo local se hace sobre la rama `develop`.
+
+Cambio local de entorno para ejecutar sin Docker:
+- Se configuro una base PostgreSQL local separada del servicio global del sistema.
+- Motivo: las credenciales del servicio PostgreSQL existente no estaban disponibles/funcionales para automatizar `develop`.
+- Archivo afectado: `.env` local.
+- Valores usados:
+  - `POSTGRES_HOST=127.0.0.1`
+  - `POSTGRES_PORT=5434`
+  - `POSTGRES_DB=app_db`
+  - `POSTGRES_USER=app_user`
+  - `POSTGRES_PASSWORD=app_password`
+
+Impacto:
+- Los scripts locales de arranque (`scripts/start-backend.ps1`) toman estos valores del `.env`.
+- `backend/src/config/settings.py` ahora carga `.env` local con `python-dotenv` sin sobrescribir variables reales del entorno.
+- Esto permite ejecutar comandos Django sin Docker y no deberia afectar Docker porque `docker-compose.yml` sigue inyectando sus variables.
+- Si otro entorno no levanta, revisar primero si esta usando Docker, PostgreSQL del sistema o esta base local separada.
+
+Modulo reportes:
+- Se agrego un modulo nuevo `reportes` para reportes operativos con filtros manuales e IA por texto/audio.
+- Nuevas variables de entorno locales:
+  - `GEMINI_API_KEY`
+  - `GEMINI_REPORTS_MODEL`
+  - `GEMINI_AUDIO_MODEL`
+- La clave real solo queda en `.env` local y no debe subirse a GitHub.
+- Se agrego `reportes.ver` al catalogo RBAC; despues de actualizar hay que ejecutar `python manage.py seed_roles_permisos`.
+- Se agregaron dependencias frontend para exportar PDF: `jspdf` y `jspdf-autotable`.
+- Se agrego dependencia backend directa para llamadas HTTP a Gemini: `requests`.
+- Se redisenio la pantalla `/admin/reportes` para mostrar catalogo por categorias, constructor de filtros compacto, asistente IA, metricas ejecutivas, graficos de barras, tendencia, distribucion tipo dona, estadisticas complementarias y tabla exportable.
+- Se ajusto nuevamente la pantalla `/admin/reportes` para hacerla mas intuitiva: panel izquierdo paso a paso para elegir reporte/filtros y tablero BI a la derecha con carga automatica del reporte inicial.
+- Al entrar a `/admin/reportes`, el layout colapsa automaticamente la barra lateral para dar mas espacio al dashboard.
+- Se agrego el filtro `Ordenar por` a reportes de productos/inventario; en `stock_actual` permite ordenar por nombre, stock y precio.
+- Se agrego el comando `python manage.py seed_reportes_demo` para poblar datos demo de ventas, clientes, inventario, recetas y bitacora. El comando regenera solo datos marcados con `[SEED_REPORTES]`.
+- Se extendio `Ordenar por` a todos los tipos de reporte y se aplica como ordenamiento generico sobre las filas finales.
+- Se optimizo el flujo de audio de reportes: el backend ahora transcribe e interpreta el audio en una sola llamada a Gemini, y el frontend graba audio comprimido con limite automatico de duracion.
+- Se mejoro la exportacion PDF de reportes: ahora incluye encabezado institucional, filtros, tarjetas de metricas, graficos generados en canvas y tabla con estilo para impresion.
+- Se amplio el catalogo del modulo reportes con reportes adicionales de ventas, productos menos vendidos, productos sin ventas, rentabilidad, rotacion, valor de inventario, stock reservado, movimientos agregados, clientes, recetas y bitacora.
+- Se agregaron opciones separadas para exportar PDF vertical y PDF horizontal.
+- Se ajusto el diseno del PDF para reemplazar el circulo del encabezado por un panel resumen y usar graficos/tabla con formato mas profesional.
+- Se mejoro el CSV para abrir mejor en Excel: incluye separador, encabezado del reporte, metricas, filtros aplicados y tabla de datos en secciones.
+
+Entorno local:
+- Se dio permiso `CREATEDB` al rol local `app_user` de PostgreSQL en puerto `5434` para poder correr tests de Django.
+- Se ignora `backend/src/media/` porque los seeds/copias locales de imagenes de productos generan archivos que no deben subirse al repositorio.
+- Se ignora `run-logs/` porque contiene logs generados al levantar backend/frontend/PostgreSQL localmente.
+- Se creo una instancia PostgreSQL local en `.local-pgdata/` para usar el puerto `5434` esperado por `.env`; esa carpeta se ignora en Git y solo sirve para correr sin Docker en esta maquina.
