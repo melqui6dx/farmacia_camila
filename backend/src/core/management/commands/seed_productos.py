@@ -1,6 +1,8 @@
 from django.core.management.base import BaseCommand
 from django.contrib.auth import get_user_model
 from django.core.files import File
+from django_tenants.utils import schema_context
+from tenants.context import set_current_tenant, clear_current_tenant
 from inventarios.models import (
     Categoria,
     Subcategoria,
@@ -36,9 +38,48 @@ class Command(BaseCommand):
             producto.imagen.save(image_path.name, File(file_obj), save=False)
         producto.save(update_fields=["imagen", "updated_at"])
 
-    def handle(self, *args, **options):
-        self.stdout.write("Sembrando catalogo de productos bolivianos...")
+    def add_arguments(self, parser):
+        parser.add_argument(
+            "--schema",
+            type=str,
+            help="Schema del tenant donde se sembraran los productos (ej: farmacia1)",
+        )
+        parser.add_argument(
+            "--all-tenants",
+            action="store_true",
+            help="Ejecuta el seed en todos los tenants activos.",
+        )
 
+    def _resolve_tenants(self, schema_name=None, all_tenants=False):
+        from tenants.models import Tenant
+
+        if schema_name and all_tenants:
+            raise ValueError("No uses --schema y --all-tenants al mismo tiempo.")
+
+        if schema_name:
+            tenant = Tenant.objects.filter(schema_name=schema_name).first()
+            if tenant is None:
+                raise ValueError(f"No existe tenant con schema '{schema_name}'.")
+            return [tenant]
+
+        if all_tenants:
+            return list(Tenant.objects.filter(status="activo").exclude(schema_name="public").order_by("id"))
+
+        raise ValueError("Debes indicar --schema o --all-tenants para ejecutar este seed.")
+
+    def handle(self, *args, **options):
+        tenants = self._resolve_tenants(options.get("schema"), options.get("all_tenants", False))
+        for tenant_obj in tenants:
+            schema = tenant_obj.schema_name
+            self.stdout.write(f"Sembrando catalogo de productos bolivianos en schema '{schema}'...")
+            with schema_context(schema):
+                set_current_tenant(tenant_obj)
+                try:
+                    self._do_seed()
+                finally:
+                    clear_current_tenant()
+
+    def _do_seed(self):
         # 1. Categorías y Subcategorías
         categorias_data = [
             {"nombre": "Medicamentos", "descripcion": "Medicamentos de uso humano"},

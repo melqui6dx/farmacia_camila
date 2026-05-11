@@ -1,18 +1,47 @@
 import random
 from datetime import timedelta
 from django.core.management.base import BaseCommand
+from django_tenants.utils import schema_context
 from django.utils import timezone
 from django.contrib.auth import get_user_model
 from ventas.models import Venta, DetalleVenta
 from inventarios.models import Producto, Inventario
 from clientes.models import Cliente
+from tenants.models import Tenant
 
 User = get_user_model()
 
 class Command(BaseCommand):
     help = 'Genera ventas historicas con valores fijos (8 ventas/dia, 12 meses)'
 
-    def handle(self, *args, **options):
+    def add_arguments(self, parser):
+        parser.add_argument(
+            "--schema",
+            type=str,
+            help="Schema del tenant donde se ejecutara el seed (ej: farmacia1)",
+        )
+        parser.add_argument(
+            "--all-tenants",
+            action="store_true",
+            help="Ejecuta el seed en todos los tenants activos.",
+        )
+
+    def _resolve_tenants(self, schema_name=None, all_tenants=False):
+        if schema_name and all_tenants:
+            raise ValueError("No uses --schema y --all-tenants al mismo tiempo.")
+
+        if schema_name:
+            tenant = Tenant.objects.filter(schema_name=schema_name).first()
+            if tenant is None:
+                raise ValueError(f"No existe tenant con schema '{schema_name}'.")
+            return [tenant]
+
+        if all_tenants:
+            return list(Tenant.objects.filter(status="activo").exclude(schema_name="public").order_by("id"))
+
+        raise ValueError("Debes indicar --schema o --all-tenants para ejecutar este seed.")
+
+    def _seed_for_current_schema(self):
         # Valores fijos dentro del código
         ventas_por_dia = 8
         meses = 12
@@ -122,3 +151,10 @@ class Command(BaseCommand):
                 self.stdout.write(f"Generadas {total_ventas} ventas hasta {current_date}")
 
         self.stdout.write(self.style.SUCCESS(f"✅ Generadas {total_ventas} ventas desde {fecha_inicio} hasta {fecha_fin}"))
+
+    def handle(self, *args, **options):
+        tenants = self._resolve_tenants(options.get("schema"), options.get("all_tenants", False))
+        for tenant in tenants:
+            with schema_context(tenant.schema_name):
+                self.stdout.write(f"[{tenant.schema_name}] Ejecutando seed de ventas historicas...")
+                self._seed_for_current_schema()

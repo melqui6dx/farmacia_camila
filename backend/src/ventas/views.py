@@ -214,9 +214,11 @@ def crear_venta_online(request):
 @api_view(["POST"])
 @permission_classes([IsAuthenticated])
 def crear_venta_pos(request):
-    from core.rbac import tiene_permiso, ROLE_CAJERO
+    from core.rbac import ROLE_CAJERO, obtener_rol_usuario, tiene_permiso
 
-    if not (tiene_permiso(request.user, "ventas.gestionar") or request.user.groups.filter(name=ROLE_CAJERO).exists() or request.user.is_superuser):
+    tenant = getattr(request, "tenant", None)
+    current_role = obtener_rol_usuario(request.user, tenant=tenant)
+    if not (tiene_permiso(request.user, "ventas.gestionar", tenant=tenant) or current_role == ROLE_CAJERO or request.user.is_superuser):
         return Response({"detail": "No tienes permiso para realizar ventas POS."}, status=status.HTTP_403_FORBIDDEN)
 
     serializer = POSVentaInputSerializer(data=request.data)

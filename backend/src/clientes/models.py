@@ -1,9 +1,10 @@
 ﻿from django.conf import settings
 from django.db import models
 from django.utils import timezone
+from tenants.mixins import TenantAwareModel
 
 
-class Cliente(models.Model):
+class Cliente(TenantAwareModel):
     TIPO_CHOICES = [
         ("registrado", "Registrado"),
         ("invitado", "Invitado"),
@@ -37,7 +38,7 @@ class Cliente(models.Model):
         return self.nombres
 
 
-class RecetaMedica(models.Model):
+class RecetaMedica(TenantAwareModel):
     ESTADO_CHOICES = [
         ("pendiente", "Pendiente"),
         ("aprobada", "Aprobada"),
@@ -46,7 +47,7 @@ class RecetaMedica(models.Model):
     ]
 
     cliente = models.ForeignKey(Cliente, on_delete=models.CASCADE, related_name="recetas")
-    codigo = models.CharField(max_length=50, unique=True)
+    codigo = models.CharField(max_length=50)
     archivo = models.FileField(upload_to="recetas/", null=True, blank=True)
     fecha_emision = models.DateField(default=timezone.localdate)
     fecha_vencimiento = models.DateField(null=True, blank=True)
@@ -67,6 +68,9 @@ class RecetaMedica(models.Model):
         verbose_name = "Receta medica"
         verbose_name_plural = "Recetas medicas"
         ordering = ["-created_at"]
+        constraints = [
+            models.UniqueConstraint(fields=["tenant", "codigo"], name="uq_receta_tenant_codigo"),
+        ]
 
     def __str__(self):
         return f"Receta {self.codigo} - Cliente {self.cliente_id}"

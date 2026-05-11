@@ -4,6 +4,7 @@ from rest_framework.response import Response
 from .models import BackupLog
 from .serializers import BackupLogSerializer
 from django.core.management import call_command
+from django.db import connection
 
 class BackupViewSet(viewsets.ViewSet):
     
@@ -28,3 +29,46 @@ class BackupViewSet(viewsets.ViewSet):
         logs = BackupLog.objects.all()[:50]  # Últimos 50 registros
         serializer = BackupLogSerializer(logs, many=True)
         return Response(serializer.data)
+
+    @action(detail=True, methods=['post'])
+    def restaurar(self, request, pk=None):
+        """Restaura la base de datos del tenant desde un backup específico"""
+        from .backup_service import restore_backup
+
+        try:
+            backup_log = BackupLog.objects.get(pk=pk)
+        except BackupLog.DoesNotExist:
+            return Response(
+                {'error': 'Backup no encontrado'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        if backup_log.status != 'success':
+            return Response(
+                {'error': 'Solo se puede restaurar desde backups con estado exitoso'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        if not backup_log.file_path:
+            return Response(
+                {'error': 'El backup no tiene archivo asociado'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        schema_name = connection.schema_name
+        if schema_name == 'public':
+            return Response(
+                {'error': 'No se puede restaurar desde el schema público'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        try:
+            restore_backup(backup_log.file_path, schema_name)
+            return Response({
+                'message': f'Restauración completada exitosamente desde el backup del {backup_log.timestamp.strftime("%d/%m/%Y %H:%M:%S")}'
+            }, status=status.HTTP_200_OK)
+        except Exception as e:
+            return Response(
+                {'error': str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )

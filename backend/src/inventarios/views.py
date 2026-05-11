@@ -462,9 +462,13 @@ class EntradaStockViewSet(viewsets.ModelViewSet):
         instance.delete()
 
     def create(self, request, *args, **kwargs):
+        from core.rbac import obtener_rol_usuario
+
+        tenant = getattr(request, "tenant", None)
+        role = obtener_rol_usuario(request.user, tenant=tenant)
         if not (
-            tiene_permiso(request.user, "inventario.registrar_entrada")
-            or request.user.groups.filter(name=ROLE_FARMACEUTICO).exists()
+            tiene_permiso(request.user, "inventario.registrar_entrada", tenant=tenant)
+            or role == ROLE_FARMACEUTICO
             or request.user.is_superuser
         ):
             log_system_event(

@@ -23,31 +23,49 @@ ALLOWED_HOSTS = [
     if h.strip()
 ]
 
-# Aplicaciones instaladas
-INSTALLED_APPS = [
+SAAS_ROOT_DOMAIN = os.getenv("SAAS_ROOT_DOMAIN", "localhost")
+SAAS_PUBLIC_BASE_URL = os.getenv("SAAS_PUBLIC_BASE_URL", "http://localhost:5173")
+SAAS_BILLING_SUCCESS_URL = os.getenv("SAAS_BILLING_SUCCESS_URL", "http://localhost:5173/admin/suscripcion?status=ok")
+SAAS_BILLING_CANCEL_URL = os.getenv("SAAS_BILLING_CANCEL_URL", "http://localhost:5173/admin/suscripcion?status=cancel")
+
+if SAAS_ROOT_DOMAIN == "localhost" and ".localhost" not in ALLOWED_HOSTS:
+    ALLOWED_HOSTS.append(".localhost")
+elif SAAS_ROOT_DOMAIN and f".{SAAS_ROOT_DOMAIN}" not in ALLOWED_HOSTS:
+    ALLOWED_HOSTS.append(f".{SAAS_ROOT_DOMAIN}")
+
+SHARED_APPS = [
+    "django_tenants",
+    "tenants",
     "django.contrib.admin",
     "django.contrib.auth",
     "django.contrib.contenttypes",
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
-    # Terceros
     "corsheaders",
     "rest_framework",
-    # Apps propias
-    "core",               # Autenticación y lógica compartida
-    "inventarios",        # Gestión de inventario
-    "backup",             # Respaldos de la base de datos
-    "clientes",           # Gestión de clientes
-    "ventas",             # Módulo de ventas
-    "carrito",            # Carrito de compras
-    "predicciones",       # Predicciones con Machine Learning
+]
+
+TENANT_APPS = [
+    "core",
+    "inventarios",
+    "backup",
+    "clientes",
+    "ventas",
+    "carrito",
+    "predicciones",
     "reportes",
 ]
 
+INSTALLED_APPS = SHARED_APPS + [app for app in TENANT_APPS if app not in SHARED_APPS]
+
 MIDDLEWARE = [
+    "django_tenants.middleware.main.TenantMainMiddleware",
+    "tenants.middleware.DevTenantHeaderMiddleware",
     "django.middleware.security.SecurityMiddleware",
+    "tenants.middleware.TenantContextMiddleware",
     "corsheaders.middleware.CorsMiddleware",       # CORS lo más arriba posible
+    "tenants.middleware.TenantAccessMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
@@ -56,7 +74,8 @@ MIDDLEWARE = [
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
 
-ROOT_URLCONF = "config.urls"
+ROOT_URLCONF = "config.tenant_urls"
+PUBLIC_SCHEMA_URLCONF = "config.public_urls"
 
 TEMPLATES = [
     {
@@ -79,7 +98,7 @@ ASGI_APPLICATION = "config.asgi.application"
 # Base de datos PostgreSQL (configurada por variables de entorno)
 DATABASES = {
     "default": {
-        "ENGINE": "django.db.backends.postgresql",
+        "ENGINE": "django_tenants.postgresql_backend",
         "NAME": os.getenv("POSTGRES_DB", "app_db"),
         "USER": os.getenv("POSTGRES_USER", "app_user"),
         "PASSWORD": os.getenv("POSTGRES_PASSWORD", "app_password"),
@@ -87,6 +106,12 @@ DATABASES = {
         "PORT": os.getenv("POSTGRES_PORT", "5432"),
     }
 }
+
+DATABASE_ROUTERS = ("django_tenants.routers.TenantSyncRouter",)
+TENANT_MODEL = "tenants.Tenant"
+TENANT_DOMAIN_MODEL = "tenants.Domain"
+PG_EXTRA_SEARCH_PATHS = []
+SHOW_PUBLIC_IF_NO_TENANT_FOUND = True
 
 # Validación de contraseñas
 AUTH_PASSWORD_VALIDATORS = [
@@ -136,6 +161,9 @@ CORS_ALLOWED_ORIGINS = [
     if origin.strip()
 ]
 
+if SAAS_PUBLIC_BASE_URL and SAAS_PUBLIC_BASE_URL not in CORS_ALLOWED_ORIGINS:
+    CORS_ALLOWED_ORIGINS.append(SAAS_PUBLIC_BASE_URL)
+
 # Permitir credenciales
 CORS_ALLOW_CREDENTIALS = True
 
@@ -151,6 +179,7 @@ CORS_ALLOW_HEADERS = [
     "x-csrftoken",
     "x-requested-with",
     "x-carrito-token",
+    "x-tenant-subdomain",
 ]
 
 # Métodos permitidos
@@ -169,6 +198,9 @@ if DEBUG:
 
 # Orígenes confiables para CSRF (necesario si se usan cookies de sesión)
 CSRF_TRUSTED_ORIGINS = ['http://localhost:5173']
+
+if SAAS_PUBLIC_BASE_URL and SAAS_PUBLIC_BASE_URL not in CSRF_TRUSTED_ORIGINS:
+    CSRF_TRUSTED_ORIGINS.append(SAAS_PUBLIC_BASE_URL)
 # ============================================================
 
 # Configuración de cookies JWT

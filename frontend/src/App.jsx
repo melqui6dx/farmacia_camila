@@ -6,6 +6,7 @@ import ProtectedRoute from "./components/routing/ProtectedRoute";
 import AdminRoute from "./components/routing/AdminRoute";
 import POSRoute from "./components/routing/POSRoute";
 import PageLoader from "./components/routing/PageLoader";
+import { getTenantSubdomain } from "./services/apiClient";
 
 // Lazy-loaded pages
 const AdminDashboardPage = lazy(() => import("./pages/AdminDashboardPage"));
@@ -28,15 +29,24 @@ const ResetPasswordPage = lazy(() => import("./pages/auth/ResetPasswordPage"));
 const VerifyEmailPage = lazy(() => import("./pages/auth/VerifyEmailPage"));
 const POSPage = lazy(() => import("./pages/pos/POSPage"));
 const CheckoutPage = lazy(() => import("./pages/CheckoutPage"));
+const SaaSLandingPage = lazy(() => import("./pages/saas/SaaSLandingPage"));
+const RegisterTenantPage = lazy(() => import("./pages/saas/RegisterTenantPage"));
+const GlobalLoginPage = lazy(() => import("./pages/saas/GlobalLoginPage"));
+const TenantSubscriptionPage = lazy(() => import("./pages/admin/TenantSubscriptionPage"));
+const GlobalTenantsPage = lazy(() => import("./pages/admin/GlobalTenantsPage"));
 
 function App() {
+  const hasTenantSubdomain = Boolean(getTenantSubdomain());
+
   return (
     <BrowserRouter>
       <AuthProvider>
         <Suspense fallback={<PageLoader />}>
           <Routes>
             {/* Rutas públicas */}
-            <Route path="/" element={<HomePage />} />
+            <Route path="/" element={hasTenantSubdomain ? <HomePage /> : <SaaSLandingPage />} />
+            <Route path="/saas/register-farmacia" element={<RegisterTenantPage />} />
+            <Route path="/saas/login" element={<GlobalLoginPage />} />
             <Route path="/login" element={<LoginPage />} />
             <Route path="/register" element={<RegisterPage />} />
             <Route path="/forgot-password" element={<ForgotPasswordPage />} />
@@ -64,6 +74,8 @@ function App() {
               <Route path="/admin/backups" element={<AdminBackupsPage />} />
               <Route path="/admin/predicciones" element={<AdminPrediccionesPage />} />
               <Route path="/admin/reportes" element={<AdminReportesPage />} />
+              <Route path="/admin/suscripcion" element={<TenantSubscriptionPage />} />
+              <Route path="/admin/global/tenants" element={<GlobalTenantsPage />} />
             </Route>
 
             {/* Punto de venta (POS) */}

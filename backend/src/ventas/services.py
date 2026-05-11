@@ -184,8 +184,11 @@ def crear_venta_service(
         observacion=observacion,
     )
 
+    tenant = venta.tenant
     for detalle in detalles:
         detalle.venta = venta
+        if tenant is not None and detalle.tenant_id is None:
+            detalle.tenant = tenant
     DetalleVenta.objects.bulk_create(detalles)
 
     referencia = f"VENTA-{venta.id}"

@@ -1,6 +1,6 @@
 ﻿from decimal import Decimal
 
-from django.db import transaction
+from django.db import connection, IntegrityError, transaction
 from django.db.models import F
 
 from inventarios.models import Inventario, Producto
@@ -10,6 +10,20 @@ from .models import Carrito, CarritoItem
 
 class CarritoServiceError(Exception):
     pass
+
+
+def _sync_carrito_pk_sequence():
+    """Sincroniza la secuencia PK de carrito_carrito con el max(id) actual."""
+    with connection.cursor() as cursor:
+        cursor.execute(
+            """
+            SELECT setval(
+                pg_get_serial_sequence('carrito_carrito', 'id'),
+                COALESCE((SELECT MAX(id) FROM carrito_carrito), 1),
+                (SELECT COUNT(*) > 0 FROM carrito_carrito)
+            )
+            """
+        )
 
 
 def obtener_o_crear_carrito_activo(*, usuario):
@@ -23,7 +37,16 @@ def obtener_o_crear_carrito_activo(*, usuario):
     carrito = Carrito(usuario=usuario, estado="activo", origen="online")
     if not usuario:
         carrito.ensure_guest_token()
-    carrito.save()
+    try:
+        carrito.save()
+    except IntegrityError as exc:
+        # Si la secuencia de PK quedo desfasada por carga/restore de datos,
+        # la sincronizamos y reintentamos una sola vez.
+        if "carrito_carrito_pkey" not in str(exc):
+            raise
+        _sync_carrito_pk_sequence()
+        carrito.pk = None
+        carrito.save()
     return carrito
 
 

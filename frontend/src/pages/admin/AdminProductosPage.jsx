@@ -74,6 +74,7 @@ export default function AdminProductosPage() {
     stock_minimo: 0,
     requiere_receta: false,
     es_controlado: false,
+    estado: true,
     imagen: null,
   });
 
@@ -237,6 +238,7 @@ export default function AdminProductosPage() {
     payload.append("stock_minimo", String(stockMinimo));
     payload.append("requiere_receta", String(formData.requiere_receta));
     payload.append("es_controlado", String(formData.es_controlado));
+    payload.append("estado", String(formData.estado ?? editingProduct?.estado ?? true));
     if (formData.imagen) {
       payload.append("imagen", formData.imagen);
     }
@@ -318,6 +320,7 @@ export default function AdminProductosPage() {
       stock_minimo: producto.stock_minimo,
       requiere_receta: producto.requiere_receta,
       es_controlado: producto.es_controlado,
+      estado: producto.estado ?? true,
       imagen: null,
     });
     setImagePreview(buildImageUrl(producto.imagen));
@@ -361,6 +364,7 @@ export default function AdminProductosPage() {
       stock_minimo: 0,
       requiere_receta: false,
       es_controlado: false,
+      estado: true,
       imagen: null,
     });
   };

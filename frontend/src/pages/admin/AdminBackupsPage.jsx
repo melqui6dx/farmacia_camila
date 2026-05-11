@@ -11,6 +11,7 @@ import {
   CheckCircleIcon,
   AlertTriangleIcon,
   HistoryIcon,
+  RestoreIcon,
 } from "../../components/ui/Icons";
 
 export default function AdminBackupsPage() {
@@ -19,6 +20,10 @@ export default function AdminBackupsPage() {
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState(null);
   const [mensaje, setMensaje] = useState(null);
+
+  // Estado para el modal de confirmación de restauración
+  const [confirmModal, setConfirmModal] = useState({ open: false, backup: null });
+  const [restoring, setRestoring] = useState(false);
 
   const cargarHistorial = useCallback(async () => {
     setLoading(true);
@@ -52,6 +57,24 @@ export default function AdminBackupsPage() {
       setError(err?.error || "Error al crear el backup");
     } finally {
       setCreating(false);
+    }
+  };
+
+  const handleRestaurar = async () => {
+    if (!confirmModal.backup) return;
+    setRestoring(true);
+    setMensaje(null);
+    setError(null);
+    try {
+      const response = await backupService.restaurarBackup(confirmModal.backup.id);
+      setMensaje(response.message || "Restauración completada exitosamente");
+      setConfirmModal({ open: false, backup: null });
+      cargarHistorial();
+    } catch (err) {
+      setError(err?.error || "Error al restaurar el backup");
+      setConfirmModal({ open: false, backup: null });
+    } finally {
+      setRestoring(false);
     }
   };
 
@@ -159,6 +182,9 @@ export default function AdminBackupsPage() {
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Error
                       </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Acciones
+                      </th>
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
@@ -207,6 +233,19 @@ export default function AdminBackupsPage() {
                         <td className="px-6 py-4 text-sm text-red-500 max-w-xs truncate">
                           {backup.error_message || "-"}
                         </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          {backup.status === "success" && backup.file_path ? (
+                            <button
+                              onClick={() => setConfirmModal({ open: true, backup })}
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-amber-700 bg-amber-50 border border-amber-200 rounded-md hover:bg-amber-100 transition-colors"
+                            >
+                              <RestoreIcon className="h-3.5 w-3.5" />
+                              Restaurar
+                            </button>
+                          ) : (
+                            <span className="text-gray-300 text-xs">—</span>
+                          )}
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -216,6 +255,69 @@ export default function AdminBackupsPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Modal de confirmación de restauración */}
+      {confirmModal.open && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 space-y-5">
+            <div className="flex items-start gap-4">
+              <div className="flex-shrink-0 w-12 h-12 rounded-full bg-amber-100 flex items-center justify-center">
+                <AlertTriangleIcon className="h-6 w-6 text-amber-600" />
+              </div>
+              <div>
+                <h2 className="text-lg font-bold text-gray-900">¿Restaurar este backup?</h2>
+                <p className="text-sm text-gray-500 mt-1">
+                  Esta acción reemplazará los datos actuales de tu farmacia con los datos del backup seleccionado.
+                </p>
+              </div>
+            </div>
+
+            <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 text-sm text-amber-800 space-y-1">
+              <p className="font-semibold">⚠ Advertencias importantes:</p>
+              <ul className="list-disc list-inside space-y-1 text-amber-700">
+                <li>Los datos actuales serán reemplazados por los del backup.</li>
+                <li>Esta acción no se puede deshacer.</li>
+                <li>Se recomienda crear un backup actual antes de restaurar.</li>
+              </ul>
+            </div>
+
+            <div className="bg-gray-50 rounded-lg p-3 text-sm text-gray-600">
+              <span className="font-medium">Backup a restaurar: </span>
+              {formatDate(confirmModal.backup?.timestamp)}
+              <span className="ml-2 text-gray-400">
+                ({formatBytes(confirmModal.backup?.file_size)})
+              </span>
+            </div>
+
+            <div className="flex gap-3 justify-end">
+              <Button
+                variant="outline"
+                onClick={() => setConfirmModal({ open: false, backup: null })}
+                disabled={restoring}
+              >
+                Cancelar
+              </Button>
+              <Button
+                onClick={handleRestaurar}
+                disabled={restoring}
+                className="bg-amber-600 hover:bg-amber-700 text-white"
+              >
+                {restoring ? (
+                  <>
+                    <LoaderIcon className="animate-spin mr-2 h-4 w-4" />
+                    Restaurando...
+                  </>
+                ) : (
+                  <>
+                    <RestoreIcon className="mr-2 h-4 w-4" />
+                    Sí, restaurar ahora
+                  </>
+                )}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </AdminLayout>
   );
 }

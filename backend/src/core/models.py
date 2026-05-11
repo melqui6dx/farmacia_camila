@@ -1,8 +1,9 @@
 from django.conf import settings
 from django.db import models
+from tenants.mixins import TenantAwareModel
 
 
-class BitacoraSistema(models.Model):
+class BitacoraSistema(TenantAwareModel):
     fecha_hora = models.DateTimeField(auto_now_add=True, db_index=True)
     usuario = models.ForeignKey(
         settings.AUTH_USER_MODEL,

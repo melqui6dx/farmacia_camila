@@ -31,6 +31,10 @@ services:
       POSTGRES_DB: ${POSTGRES_DB}
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      SAAS_ROOT_DOMAIN: ${SAAS_ROOT_DOMAIN:-localhost}
+      SAAS_PUBLIC_BASE_URL: ${SAAS_PUBLIC_BASE_URL:-http://localhost:5173}
+      SAAS_BILLING_SUCCESS_URL: ${SAAS_BILLING_SUCCESS_URL:-http://localhost:5173/admin/suscripcion?status=ok}
+      SAAS_BILLING_CANCEL_URL: ${SAAS_BILLING_CANCEL_URL:-http://localhost:5173/admin/suscripcion?status=cancel}
     depends_on:
       db:
         condition: service_healthy
@@ -50,6 +54,7 @@ services:
       - backend
     environment:
       VITE_API_BASE_URL: http://localhost:${DJANGO_PORT}
+      VITE_ROOT_DOMAIN: ${SAAS_ROOT_DOMAIN:-localhost}
       VITE_STRIPE_PUBLIC_KEY: ${STRIPE_PUBLIC_KEY}   # Stripe para pasarela de pagos
       CHOKIDAR_USEPOLLING: "true"
     ports:

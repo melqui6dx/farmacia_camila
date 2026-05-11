@@ -2,9 +2,10 @@
 
 from django.conf import settings
 from django.db import models
+from tenants.mixins import TenantAwareModel
 
 
-class Carrito(models.Model):
+class Carrito(TenantAwareModel):
     ESTADO_CHOICES = [
         ("activo", "Activo"),
         ("confirmado", "Confirmado"),
@@ -34,7 +35,7 @@ class Carrito(models.Model):
             self.invitado_token = secrets.token_hex(24)
 
 
-class CarritoItem(models.Model):
+class CarritoItem(TenantAwareModel):
     carrito = models.ForeignKey(Carrito, on_delete=models.CASCADE, related_name="items")
     producto = models.ForeignKey("inventarios.Producto", on_delete=models.PROTECT, related_name="items_carrito")
     cantidad = models.PositiveIntegerField(default=1)

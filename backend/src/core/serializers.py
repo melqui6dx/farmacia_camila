@@ -30,6 +30,15 @@ def _generate_unique_username(email):
     return candidate
 
 
+def _tenant_from_context(serializer_instance):
+    request = serializer_instance.context.get("request") if serializer_instance.context else None
+    if request is not None and getattr(request, "tenant", None) is not None:
+        return getattr(request, "tenant", None)
+    if serializer_instance.context:
+        return serializer_instance.context.get("tenant")
+    return None
+
+
 class RegisterSerializer(serializers.ModelSerializer):
     first_name = serializers.CharField(required=True, max_length=150)
     last_name = serializers.CharField(required=True, max_length=150)
@@ -48,10 +57,12 @@ class RegisterSerializer(serializers.ModelSerializer):
         return normalized
 
     def create(self, validated_data):
+        from django.conf import settings
+
         user_model = get_user_model()
         validated_data["username"] = _generate_unique_username(validated_data["email"])
         user = user_model.objects.create_user(**validated_data)
-        user.is_active = False
+        user.is_active = settings.DEBUG
         user.save(update_fields=["is_active"])
         return user
 
@@ -66,13 +77,13 @@ class UserSerializer(serializers.ModelSerializer):
         fields = ("id", "username", "first_name", "last_name", "email", "role", "can_access_admin", "permisos")
 
     def get_role(self, obj):
-        return obtener_rol_usuario(obj)
+        return obtener_rol_usuario(obj, tenant=_tenant_from_context(self))
 
     def get_can_access_admin(self, obj):
-        return puede_acceder_backoffice(obj)
+        return puede_acceder_backoffice(obj, tenant=_tenant_from_context(self))
 
     def get_permisos(self, obj):
-        return obtener_permisos_usuario(obj)
+        return obtener_permisos_usuario(obj, tenant=_tenant_from_context(self))
 
 
 class AdminUserSerializer(serializers.ModelSerializer):
@@ -99,13 +110,13 @@ class AdminUserSerializer(serializers.ModelSerializer):
         )
 
     def get_role(self, obj):
-        return obtener_rol_usuario(obj)
+        return obtener_rol_usuario(obj, tenant=_tenant_from_context(self))
 
     def get_can_access_admin(self, obj):
-        return puede_acceder_backoffice(obj)
+        return puede_acceder_backoffice(obj, tenant=_tenant_from_context(self))
 
     def get_permisos(self, obj):
-        return obtener_permisos_usuario(obj)
+        return obtener_permisos_usuario(obj, tenant=_tenant_from_context(self))
 
 
 class AdminUserUpdateSerializer(serializers.Serializer):

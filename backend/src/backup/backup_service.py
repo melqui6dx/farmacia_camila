@@ -2,6 +2,7 @@ import subprocess
 import os
 import tarfile
 import datetime
+import tempfile
 from django.conf import settings
 from io import BytesIO
 
@@ -38,3 +39,61 @@ def create_backup():
     
     file_size = os.path.getsize(tar_file)
     return tar_file, file_size
+
+
+def restore_backup(file_path, schema_name):
+    """
+    Restaura el esquema de un tenant específico desde un archivo de backup.
+    Solo restaura objetos del schema indicado, sin afectar otros tenants.
+    """
+    if not os.path.exists(file_path):
+        raise Exception(f"Archivo de backup no encontrado: {file_path}")
+
+    db_settings = settings.DATABASES['default']
+    env = os.environ.copy()
+    env['PGPASSWORD'] = db_settings['PASSWORD']
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        # Extraer el .dump del tar.gz
+        with tarfile.open(file_path, 'r:gz') as tar:
+            dump_members = [m for m in tar.getmembers() if m.name.endswith('.dump')]
+            if not dump_members:
+                raise Exception("No se encontró archivo .dump en el backup")
+            # Extracción segura: solo archivos, sin rutas absolutas ni traversal
+            member = dump_members[0]
+            member_path = os.path.realpath(os.path.join(tmpdir, member.name))
+            if not member_path.startswith(os.path.realpath(tmpdir)):
+                raise Exception("Path traversal detectado en el archivo de backup")
+            tar.extract(member, path=tmpdir)
+            dump_file = os.path.join(tmpdir, member.name)
+
+        # Restaurar solo el schema del tenant con pg_restore
+        # Usamos lista de argumentos (sin shell=True) para evitar inyección de comandos
+        pg_restore_cmd = [
+            'pg_restore',
+            '-h', db_settings['HOST'],
+            '-p', str(db_settings.get('PORT', 5432)),
+            '-U', db_settings['USER'],
+            '-d', db_settings['NAME'],
+            f'--schema={schema_name}',
+            '--clean',
+            '--if-exists',
+            '--no-owner',
+            '--no-privileges',
+            '--no-comments',
+            '-F', 'c',
+            dump_file,
+        ]
+
+        result = subprocess.run(
+            pg_restore_cmd,
+            env=env,
+            capture_output=True,
+            text=True,
+        )
+
+        # pg_restore devuelve código 1 para advertencias no fatales; >1 es error real
+        if result.returncode > 1:
+            raise Exception(f"Error en pg_restore: {result.stderr[:2000]}")
+
+    return True

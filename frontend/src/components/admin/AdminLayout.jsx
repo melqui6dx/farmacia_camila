@@ -27,18 +27,20 @@ export default function AdminLayout({ activeSection, setActiveSection, currentUs
     return window.localStorage.getItem("admin-sidebar-collapsed") === "true";
   });
   const userMenuRef = useRef(null);
-  const { hasPermission } = useAuth();
+  const { hasPermission, user: authUser, logout: authLogout } = useAuth();
+  const resolvedUser = currentUser ?? authUser;
+  const resolvedLogout = onLogout ?? authLogout;
   const location = useLocation();
   const navigate = useNavigate();
 
   useOutsideClick(userMenuRef, () => setShowUserMenu(false));
 
   const roleLabel = useMemo(() => {
-    if (currentUser?.role === "admin") return "Administrador";
-    if (currentUser?.role === "farmaceutico") return "Farmaceutico";
-    if (currentUser?.role === "cajero") return "Cajero";
+    if (resolvedUser?.role === "admin") return "Administrador";
+    if (resolvedUser?.role === "farmaceutico") return "Farmaceutico";
+    if (resolvedUser?.role === "cajero") return "Cajero";
     return "Cliente";
-  }, [currentUser]);
+  }, [resolvedUser]);
 
   const visibleSections = useMemo(
     () => adminSections.filter((section) => hasPermission(section.requiredPermission)),
@@ -122,12 +124,12 @@ export default function AdminLayout({ activeSection, setActiveSection, currentUs
   }, [isSidebarCollapsed]);
 
   const fullName = useMemo(() => {
-    return [currentUser?.first_name, currentUser?.last_name].filter(Boolean).join(" ").trim();
-  }, [currentUser]);
+    return [resolvedUser?.first_name, resolvedUser?.last_name].filter(Boolean).join(" ").trim();
+  }, [resolvedUser]);
 
   const displayName = useMemo(() => {
-    return fullName || currentUser?.username || "Admin";
-  }, [fullName, currentUser]);
+    return fullName || resolvedUser?.username || "Admin";
+  }, [fullName, resolvedUser]);
 
   const initials = useMemo(() => {
     if (fullName) {
@@ -137,9 +139,9 @@ export default function AdminLayout({ activeSection, setActiveSection, currentUs
       return `${first}${second}`.toUpperCase() || "AD";
     }
 
-    const value = currentUser?.username || "Admin";
+    const value = resolvedUser?.username || "Admin";
     return value.slice(0, 2).toUpperCase();
-  }, [currentUser, fullName]);
+  }, [resolvedUser, fullName]);
 
   // Mapa de iconos: incluye POS y backups
   const iconMap = {
@@ -371,7 +373,7 @@ export default function AdminLayout({ activeSection, setActiveSection, currentUs
                   <div className="absolute right-0 z-20 mt-2 w-56 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-lg">
                     <div className="border-b border-slate-100 bg-slate-50 px-3 py-2">
                       <p className="text-xs font-bold text-slate-800">{displayName}</p>
-                      <p className="text-[11px] text-slate-500">{currentUser?.email || "Sin correo"}</p>
+                      <p className="text-[11px] text-slate-500">{resolvedUser?.email || "Sin correo"}</p>
                     </div>
                     <div className="p-1.5">
                       <button
@@ -390,7 +392,7 @@ export default function AdminLayout({ activeSection, setActiveSection, currentUs
                       </button>
                       <button
                         type="button"
-                        onClick={onLogout}
+                        onClick={resolvedLogout}
                         className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-xs font-semibold text-rose-600 transition hover:bg-rose-50"
                       >
                         <LogOutIcon className="h-4 w-4" />

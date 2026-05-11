@@ -1,4 +1,5 @@
 ﻿from django.shortcuts import get_object_or_404
+from clientes.models import Cliente
 from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny
@@ -15,6 +16,27 @@ from .services import CarritoServiceError, actualizar_item_carrito, agregar_item
 
 def _es_admin_operativo(user):
     return bool(user and user.is_authenticated and (user.is_staff or user.is_superuser))
+
+
+def _get_or_create_cliente(usuario):
+    """Get or create a Cliente record for an authenticated user."""
+    from django.db import connection as _conn
+
+    tenant = getattr(_conn, "tenant", None)
+    cliente, created = Cliente.all_objects.get_or_create(
+        usuario=usuario,
+        defaults={
+            "tipo": "registrado",
+            "nombres": usuario.first_name or usuario.email.split("@")[0],
+            "apellidos": usuario.last_name or "",
+            "email": usuario.email,
+            "tenant": tenant,
+        },
+    )
+    if created and tenant and not cliente.tenant_id:
+        cliente.tenant = tenant
+        cliente.save(update_fields=["tenant"])
+    return cliente
 
 
 def _extraer_token_invitado(request):
@@ -150,8 +172,7 @@ def carrito_confirmar(request):
 
     try:
         venta = crear_venta_service(
-            cliente=None,
-            usuario=usuario,
+                        cliente=_get_or_create_cliente(usuario),
             items=venta_items,
             origen="online",
             vendedor=None,

@@ -5,11 +5,13 @@ from django.contrib.auth import get_user_model
 from django.core.management.base import BaseCommand
 from django.db import transaction
 from django.utils import timezone
+from django_tenants.utils import schema_context
 
 from clientes.models import Cliente, RecetaMedica
 from core.models import BitacoraSistema
 from core.rbac import ROLE_ADMIN, ROLE_CAJERO, ROLE_FARMACEUTICO, asignar_rol_usuario, seed_roles_y_permisos
 from inventarios.models import Categoria, Inventario, Laboratorio, MovimientoInventario, Producto, Subcategoria
+from tenants.models import Tenant
 from ventas.models import DetalleVenta, Factura, Venta
 
 
@@ -22,10 +24,35 @@ class Command(BaseCommand):
 
     def add_arguments(self, parser):
         parser.add_argument(
+            "--schema",
+            type=str,
+            help="Schema del tenant donde se ejecutara el seed (ej: farmacia1)",
+        )
+        parser.add_argument(
+            "--all-tenants",
+            action="store_true",
+            help="Ejecuta el seed en todos los tenants activos.",
+        )
+        parser.add_argument(
             "--keep-existing",
             action="store_true",
             help="No borra datos demo previos. Por defecto se regeneran para evitar duplicados.",
         )
+
+    def _resolve_tenants(self, schema_name=None, all_tenants=False):
+        if schema_name and all_tenants:
+            raise ValueError("No uses --schema y --all-tenants al mismo tiempo.")
+
+        if schema_name:
+            tenant = Tenant.objects.filter(schema_name=schema_name).first()
+            if tenant is None:
+                raise ValueError(f"No existe tenant con schema '{schema_name}'.")
+            return [tenant]
+
+        if all_tenants:
+            return list(Tenant.objects.filter(status="activo").exclude(schema_name="public").order_by("id"))
+
+        raise ValueError("Debes indicar --schema o --all-tenants para ejecutar este seed.")
 
     def _aware(self, day_offset, hour=10, minute=0):
         base = timezone.localdate() + timedelta(days=day_offset)
@@ -299,7 +326,7 @@ class Command(BaseCommand):
             self._set_datetime(BitacoraSistema, evento.pk, fecha_hora=event_dt)
 
     @transaction.atomic
-    def handle(self, *args, **options):
+    def _seed_for_current_schema(self, *args, **options):
         seed_roles_y_permisos()
         if not options["keep_existing"]:
             self._cleanup()
@@ -317,3 +344,10 @@ class Command(BaseCommand):
 
         self.stdout.write(self.style.SUCCESS("Datos demo de reportes creados correctamente."))
         self.stdout.write(self.style.SUCCESS(f"Productos demo: {len(productos)} | Ventas demo: {ventas_count} | Clientes demo: {len(clientes)}"))
+
+    def handle(self, *args, **options):
+        tenants = self._resolve_tenants(options.get("schema"), options.get("all_tenants", False))
+        for tenant in tenants:
+            with schema_context(tenant.schema_name):
+                self.stdout.write(f"[{tenant.schema_name}] Ejecutando seed de reportes demo...")
+                self._seed_for_current_schema(*args, **options)

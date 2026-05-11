@@ -1,6 +1,7 @@
 from django.db import models
+from tenants.mixins import TenantAwareModel
 
-class BackupLog(models.Model):
+class BackupLog(TenantAwareModel):
     BACKUP_TYPES = [
         ('manual', 'Manual'),
         ('auto', 'Automático'),  # Lo dejo por si en futuro se automatiza
