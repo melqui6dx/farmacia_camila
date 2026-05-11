@@ -78,7 +78,7 @@ export async function listPermissionsCatalog(accessToken) {
   });
 }
 
-export async function getBitacora(params = {}) {
+export async function getBitacora(params = {}, accessToken) {
   const query = new URLSearchParams();
 
   if (params.page) query.set("page", String(params.page));
@@ -115,9 +115,7 @@ export async function getBitacora(params = {}) {
 
   return requestJsonWithAuthRetry(endpoint, {
     method: "GET",
-    headers: {
-      "Content-Type": "application/json",
-    },
+    headers: authHeaders(accessToken),
   });
 }
 

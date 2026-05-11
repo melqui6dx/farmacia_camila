@@ -14,4 +14,5 @@ def crear_inventario_al_crear_producto(sender, instance, created, **kwargs):
             stock_reservado=0,
             stock_minimo=instance.stock_minimo
         )
-        print(f"✅ Inventario creado para producto: {instance.nombre_comercial}")
+        # Keep signal side effects free from console encoding issues (notably on Windows cp1252).
+        print(f"Inventario creado para producto: {instance.nombre_comercial}")

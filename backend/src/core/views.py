@@ -53,6 +53,9 @@ from .security import (
     is_locked,
     register_failure,
 )
+from .authentication import get_tenant_cookie_name
+from tenants.models import TenantUser
+from clientes.models import Cliente
 
 
 class AdminUsersPagination(PageNumberPagination):
@@ -68,39 +71,44 @@ class AdminBitacoraPagination(PageNumberPagination):
 
 
 def ensure_rbac_seeded_and_user_role(user=None):
+    request_tenant = getattr(user, "_request_tenant", None) if user is not None else None
+
     seed_roles_y_permisos()
 
-    if user is None or user.groups.exists():
+    if user is None:
+        return
+
+    if request_tenant is None:
+        return
+
+    if TenantUser.objects.filter(user=user, tenant=request_tenant, is_active=True).exists():
         return
 
     if user.is_superuser:
-        asignar_rol_usuario(user, ROLE_ADMIN)
+        asignar_rol_usuario(user, ROLE_ADMIN, tenant=request_tenant)
     elif user.is_staff:
-        asignar_rol_usuario(user, ROLE_FARMACEUTICO)
+        asignar_rol_usuario(user, ROLE_FARMACEUTICO, tenant=request_tenant)
     else:
-        asignar_rol_usuario(user, ROLE_CLIENTE)
+        asignar_rol_usuario(user, ROLE_CLIENTE, tenant=request_tenant)
 
     user.save(update_fields=["is_superuser", "is_staff"])
 
 
 def require_permission_response(user, permission_code, detail_message):
-    if tiene_permiso(user, permission_code) or user.is_superuser:
+    tenant = getattr(user, "_request_tenant", None)
+    if tiene_permiso(user, permission_code, tenant=tenant) or user.is_superuser:
         return None
 
     return Response({"detail": detail_message}, status=status.HTTP_403_FORBIDDEN)
 
 
-def count_active_admin_users():
-    user_model = get_user_model()
-    return (
-        user_model.objects.filter(is_active=True)
-        .filter(Q(is_superuser=True) | Q(groups__name=ROLE_ADMIN))
-        .distinct()
-        .count()
-    )
+def count_active_admin_users(tenant=None):
+    if tenant is None:
+        return get_user_model().objects.filter(is_superuser=True, is_active=True).count()
+    return TenantUser.objects.filter(tenant=tenant, role=ROLE_ADMIN, is_active=True).count()
 
 
-def set_auth_cookies(response, access_token=None, refresh_token=None):
+def set_auth_cookies(response, access_token=None, refresh_token=None, request=None):
     cookie_common_kwargs = {
         "httponly": True,
         "secure": settings.AUTH_COOKIE_SECURE,
@@ -108,9 +116,12 @@ def set_auth_cookies(response, access_token=None, refresh_token=None):
         "path": "/",
     }
 
+    access_cookie_name = get_tenant_cookie_name(settings.AUTH_ACCESS_COOKIE_NAME, request) if request else settings.AUTH_ACCESS_COOKIE_NAME
+    refresh_cookie_name = get_tenant_cookie_name(settings.AUTH_REFRESH_COOKIE_NAME, request) if request else settings.AUTH_REFRESH_COOKIE_NAME
+
     if access_token:
         response.set_cookie(
-            settings.AUTH_ACCESS_COOKIE_NAME,
+            access_cookie_name,
             access_token,
             max_age=settings.AUTH_ACCESS_COOKIE_AGE,
             **cookie_common_kwargs,
@@ -118,14 +129,18 @@ def set_auth_cookies(response, access_token=None, refresh_token=None):
 
     if refresh_token:
         response.set_cookie(
-            settings.AUTH_REFRESH_COOKIE_NAME,
+            refresh_cookie_name,
             refresh_token,
             max_age=settings.AUTH_REFRESH_COOKIE_AGE,
             **cookie_common_kwargs,
         )
 
 
-def clear_auth_cookies(response):
+def clear_auth_cookies(response, request=None):
+    access_cookie_name = get_tenant_cookie_name(settings.AUTH_ACCESS_COOKIE_NAME, request) if request else settings.AUTH_ACCESS_COOKIE_NAME
+    refresh_cookie_name = get_tenant_cookie_name(settings.AUTH_REFRESH_COOKIE_NAME, request) if request else settings.AUTH_REFRESH_COOKIE_NAME
+    response.delete_cookie(access_cookie_name, path="/")
+    response.delete_cookie(refresh_cookie_name, path="/")
     response.delete_cookie(settings.AUTH_ACCESS_COOKIE_NAME, path="/")
     response.delete_cookie(settings.AUTH_REFRESH_COOKIE_NAME, path="/")
 
@@ -164,6 +179,25 @@ def register(request):
     serializer = RegisterSerializer(data=request.data)
     serializer.is_valid(raise_exception=True)
     user = serializer.save()
+
+    tenant = getattr(request, "tenant", None)
+    if tenant is not None and getattr(tenant, "schema_name", "public") != "public":
+        TenantUser.objects.update_or_create(
+            tenant=tenant,
+            user=user,
+            defaults={"role": ROLE_CLIENTE, "is_active": True},
+        )
+        Cliente.objects.get_or_create(
+            usuario=user,
+            defaults={
+                "tenant": tenant,
+                "tipo": "registrado",
+                "nombres": user.first_name,
+                "apellidos": user.last_name,
+                "email": user.email,
+                "estado": True,
+            },
+        )
 
     uid = urlsafe_base64_encode(force_bytes(user.pk))
     token = default_token_generator.make_token(user)
@@ -248,6 +282,7 @@ def login(request):
     if normalized_email:
         clear_failures_and_lock(email_scope, normalized_email)
 
+    user._request_tenant = getattr(request, "tenant", None)
     ensure_rbac_seeded_and_user_role(user)
 
     update_last_login(None, user)
@@ -258,10 +293,10 @@ def login(request):
         {
             "access": str(refresh.access_token),
             "refresh": str(refresh),
-            "user": UserSerializer(user).data,
+            "user": UserSerializer(user, context={"request": request}).data,
         }
     )
-    set_auth_cookies(response, access_token=str(refresh.access_token), refresh_token=str(refresh))
+    set_auth_cookies(response, access_token=str(refresh.access_token), refresh_token=str(refresh), request=request)
     return response
 
 
@@ -285,7 +320,7 @@ def refresh_session(request):
             "refresh": rotated_refresh_token,
         }
     )
-    set_auth_cookies(response, access_token=access_token, refresh_token=rotated_refresh_token)
+    set_auth_cookies(response, access_token=access_token, refresh_token=rotated_refresh_token, request=request)
     log_auth_event(request, "refresh", outcome="success")
     return response
 
@@ -294,7 +329,7 @@ def refresh_session(request):
 @permission_classes([AllowAny])
 def logout(request):
     response = Response({"detail": "Sesion cerrada correctamente."}, status=status.HTTP_200_OK)
-    clear_auth_cookies(response)
+    clear_auth_cookies(response, request=request)
     log_auth_event(request, "logout", outcome="success")
     return response
 
@@ -331,13 +366,15 @@ def verify_email(request):
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def me(request):
+    request.user._request_tenant = getattr(request, "tenant", None)
     ensure_rbac_seeded_and_user_role(request.user)
-    return Response(UserSerializer(request.user).data)
+    return Response(UserSerializer(request.user, context={"request": request}).data)
 
 
 @api_view(["GET", "POST"])
 @permission_classes([IsAuthenticated])
 def admin_users_list(request):
+    request.user._request_tenant = getattr(request, "tenant", None)
     if request.method == "GET":
         permission_denied = require_permission_response(
             request.user,
@@ -363,12 +400,9 @@ def admin_users_list(request):
             )
 
         if role != "all":
-            if role == "worker":
-                users = users.filter(is_staff=True, is_superuser=False)
-            elif role in {"customer"}:
-                users = users.filter(groups__name="cliente")
-            else:
-                users = users.filter(groups__name=role)
+            tenant = getattr(request, "tenant", None)
+            member_ids = TenantUser.objects.filter(tenant=tenant, role=role, is_active=True).values_list("user_id", flat=True)
+            users = users.filter(id__in=member_ids)
 
         if status_filter == "active":
             users = users.filter(is_active=True)
@@ -377,7 +411,7 @@ def admin_users_list(request):
 
         paginator = AdminUsersPagination()
         paged_users = paginator.paginate_queryset(users, request)
-        serializer = AdminUserSerializer(paged_users, many=True)
+        serializer = AdminUserSerializer(paged_users, many=True, context={"request": request})
         return paginator.get_paginated_response(serializer.data)
 
     permission_denied = require_permission_response(
@@ -388,7 +422,7 @@ def admin_users_list(request):
     if permission_denied:
         return permission_denied
 
-    serializer = AdminUserCreateSerializer(data=request.data)
+    serializer = AdminUserCreateSerializer(data=request.data, context={"tenant": getattr(request, "tenant", None), "request": request})
     serializer.is_valid(raise_exception=True)
     created_user = serializer.save()
     
@@ -398,17 +432,18 @@ def admin_users_list(request):
         accion="CREATE",
         modulo="usuarios",
         resultado="SUCCESS",
-        mensaje=f"Usuario creado: {created_user.email} con rol {obtener_rol_usuario(created_user)}",
+        mensaje=f"Usuario creado: {created_user.email} con rol {obtener_rol_usuario(created_user, tenant=getattr(request, 'tenant', None))}",
         entidad="User",
         entidad_id=str(created_user.id),
     )
     
-    return Response(AdminUserSerializer(created_user).data, status=status.HTTP_201_CREATED)
+    return Response(AdminUserSerializer(created_user, context={"request": request}).data, status=status.HTTP_201_CREATED)
 
 
 @api_view(["PATCH", "DELETE"])
 @permission_classes([IsAuthenticated])
 def admin_user_update(request, user_id):
+    request.user._request_tenant = getattr(request, "tenant", None)
     permission_denied = require_permission_response(
         request.user,
         "usuarios.gestionar",
@@ -427,7 +462,7 @@ def admin_user_update(request, user_id):
         if request.user.id == target_user.id:
             return Response({"detail": "No puedes eliminar tu propia cuenta."}, status=status.HTTP_400_BAD_REQUEST)
 
-        if obtener_rol_usuario(target_user) == ROLE_ADMIN and target_user.is_active and count_active_admin_users() <= 1:
+        if obtener_rol_usuario(target_user, tenant=getattr(request, "tenant", None)) == ROLE_ADMIN and target_user.is_active and count_active_admin_users(getattr(request, "tenant", None)) <= 1:
             return Response(
                 {"detail": "No puedes eliminar el ultimo administrador activo."},
                 status=status.HTTP_400_BAD_REQUEST,
@@ -454,7 +489,7 @@ def admin_user_update(request, user_id):
         target_user,
         data=request.data,
         partial=True,
-        context={"request_user": request.user},
+        context={"request_user": request.user, "tenant": getattr(request, "tenant", None), "request": request},
     )
     serializer.is_valid(raise_exception=True)
     updated_user = serializer.save()
@@ -482,12 +517,13 @@ def admin_user_update(request, user_id):
         entidad_id=str(updated_user.id),
     )
 
-    return Response(AdminUserSerializer(updated_user).data)
+    return Response(AdminUserSerializer(updated_user, context={"request": request}).data)
 
 
 @api_view(["GET", "POST"])
 @permission_classes([IsAuthenticated])
 def admin_roles_list(request):
+    request.user._request_tenant = getattr(request, "tenant", None)
     permission_denied = require_permission_response(
         request.user,
         "usuarios.gestionar",
@@ -499,8 +535,8 @@ def admin_roles_list(request):
     ensure_rbac_seeded_and_user_role(request.user)
 
     if request.method == "GET":
-        roles = obtener_roles_disponibles()
-        serializer = RolSerializer(roles, many=True)
+        roles = obtener_roles_disponibles(tenant=getattr(request, "tenant", None))
+        serializer = RolSerializer(roles, many=True, context={"request": request})
         return Response(serializer.data)
 
     serializer = RolCreateUpdateSerializer(data=request.data)
@@ -509,7 +545,7 @@ def admin_roles_list(request):
     role_permissions = serializer.validated_data.get("permisos", [])
 
     try:
-        role_group = crear_rol(role_name, role_permissions)
+        role_group = crear_rol(role_name, role_permissions, tenant=getattr(request, "tenant", None))
     except ValueError as ex:
         return Response({"detail": str(ex)}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -521,15 +557,16 @@ def admin_roles_list(request):
         resultado="SUCCESS",
         mensaje=f"Rol creado: {role_name} con {len(role_permissions)} permisos",
         entidad="Group",
-        entidad_id=str(role_group.id),
+        entidad_id=str(getattr(role_group, "id", "")),
     )
 
-    return Response(RolSerializer(role_group).data, status=status.HTTP_201_CREATED)
+    return Response(RolSerializer(role_group.nombre, context={"request": request}).data, status=status.HTTP_201_CREATED)
 
 
 @api_view(["PATCH", "DELETE"])
 @permission_classes([IsAuthenticated])
 def admin_role_detail(request, role_name):
+    request.user._request_tenant = getattr(request, "tenant", None)
     permission_denied = require_permission_response(
         request.user,
         "usuarios.gestionar",
@@ -540,24 +577,27 @@ def admin_role_detail(request, role_name):
 
     normalized_role_name = role_name.strip().lower()
 
-    from django.contrib.auth.models import Group
-
-    role_group = Group.objects.filter(name=normalized_role_name).first()
-    if not role_group:
+    tenant = getattr(request, "tenant", None)
+    available_roles = set(obtener_roles_disponibles(tenant=tenant))
+    if normalized_role_name not in available_roles:
         return Response({"detail": "Rol no encontrado."}, status=status.HTTP_404_NOT_FOUND)
 
     if request.method == "DELETE":
-        if role_group.name in ROLES_PROTEGIDOS:
+        if normalized_role_name in ROLES_PROTEGIDOS:
             return Response({"detail": "No se puede eliminar un rol protegido."}, status=status.HTTP_400_BAD_REQUEST)
 
-        if role_group.user_set.exists():
+        if TenantUser.objects.filter(tenant=tenant, role=normalized_role_name, is_active=True).exists():
             return Response(
                 {"detail": "No se puede eliminar el rol porque tiene usuarios asignados."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        role_id = role_group.id
-        role_group.delete()
+        from tenants.models import TenantRole
+
+        role_obj = TenantRole.objects.filter(tenant=tenant, nombre=normalized_role_name).first()
+        role_id = role_obj.id if role_obj else ""
+        if role_obj:
+            role_obj.delete()
         
         from .audit import log_system_event
         log_system_event(
@@ -572,12 +612,12 @@ def admin_role_detail(request, role_name):
         
         return Response(status=status.HTTP_204_NO_CONTENT)
 
-    serializer = RolCreateUpdateSerializer(data={"nombre": role_group.name, "permisos": request.data.get("permisos", [])})
+    serializer = RolCreateUpdateSerializer(data={"nombre": normalized_role_name, "permisos": request.data.get("permisos", [])})
     serializer.is_valid(raise_exception=True)
 
     role_permissions = serializer.validated_data.get("permisos", [])
     try:
-        actualizar_permisos_rol(role_group, role_permissions)
+        actualizar_permisos_rol(normalized_role_name, role_permissions, tenant=tenant)
     except ValueError as ex:
         return Response({"detail": str(ex)}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -587,12 +627,12 @@ def admin_role_detail(request, role_name):
         accion="UPDATE",
         modulo="roles",
         resultado="SUCCESS",
-        mensaje=f"Permisos actualizados para rol: {role_group.name} - {len(role_permissions)} permisos asignados",
+        mensaje=f"Permisos actualizados para rol: {normalized_role_name} - {len(role_permissions)} permisos asignados",
         entidad="Group",
-        entidad_id=str(role_group.id),
+        entidad_id=normalized_role_name,
     )
 
-    return Response({"nombre": role_group.name, "permisos": obtener_permisos_rol(role_group.name)})
+    return Response({"nombre": normalized_role_name, "permisos": obtener_permisos_rol(normalized_role_name, tenant=tenant)})
 
 
 @api_view(["GET"])

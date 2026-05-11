@@ -1,7 +1,23 @@
+# Django y APIs
 Django==5.1.6
 djangorestframework==3.15.2
 djangorestframework-simplejwt==5.3.1
 django-cors-headers==4.6.0
-psycopg[binary]==3.2.6
+django-tenants==3.7.0
 python-dotenv==1.0.1
 Pillow==11.2.1
+
+# Base de datos
+psycopg[binary]==3.2.6
+
+# Machine Learning
+scikit-learn==1.5.2
+pandas==2.2.3
+numpy==1.26.4
+joblib==1.4.2
+
+# Pagos con Stripe
+stripe==15.1.0
+
+# Reportes con IA
+requests==2.33.1

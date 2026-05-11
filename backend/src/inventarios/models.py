@@ -1,10 +1,11 @@
 ﻿from django.db import models
 from django.core.validators import MinValueValidator
 from django.conf import settings
+from tenants.mixins import TenantAwareModel
 
 
-class Categoria(models.Model):
-    nombre = models.CharField(max_length=100, unique=True)
+class Categoria(TenantAwareModel):
+    nombre = models.CharField(max_length=100)
     descripcion = models.TextField(blank=True)
     estado = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -14,12 +15,15 @@ class Categoria(models.Model):
         verbose_name = "Categoría"
         verbose_name_plural = "Categorías"
         ordering = ["nombre"]
+        constraints = [
+            models.UniqueConstraint(fields=["tenant", "nombre"], name="uq_categoria_tenant_nombre"),
+        ]
 
     def __str__(self):
         return self.nombre
 
 
-class Subcategoria(models.Model):
+class Subcategoria(TenantAwareModel):
     categoria = models.ForeignKey(Categoria, on_delete=models.CASCADE, related_name="subcategorias")
     nombre = models.CharField(max_length=100)
     descripcion = models.TextField(blank=True)
@@ -37,8 +41,8 @@ class Subcategoria(models.Model):
         return f"{self.categoria.nombre} - {self.nombre}"
 
 
-class Laboratorio(models.Model):
-    nombre = models.CharField(max_length=150, unique=True)
+class Laboratorio(TenantAwareModel):
+    nombre = models.CharField(max_length=150)
     pais = models.CharField(max_length=100, blank=True)
     telefono = models.CharField(max_length=20, blank=True)
     email = models.EmailField(blank=True)
@@ -52,12 +56,15 @@ class Laboratorio(models.Model):
         verbose_name = "Laboratorio"
         verbose_name_plural = "Laboratorios"
         ordering = ["nombre"]
+        constraints = [
+            models.UniqueConstraint(fields=["tenant", "nombre"], name="uq_laboratorio_tenant_nombre"),
+        ]
 
     def __str__(self):
         return self.nombre
 
 
-class Producto(models.Model):
+class Producto(TenantAwareModel):
     FORMA_FARMACEUTICA_CHOICES = [
         ("tableta", "Tableta"),
         ("capsula", "Cápsula"),
@@ -78,7 +85,7 @@ class Producto(models.Model):
         ("sobre", "Sobre"),
     ]
 
-    sku = models.CharField(max_length=50, unique=True, help_text="Código interno único")
+    sku = models.CharField(max_length=50, help_text="Código interno único")
     nombre_comercial = models.CharField(max_length=200)
     nombre_generico = models.CharField(max_length=200, blank=True)
     descripcion = models.TextField(blank=True)
@@ -114,6 +121,9 @@ class Producto(models.Model):
         verbose_name = "Producto"
         verbose_name_plural = "Productos"
         ordering = ["nombre_comercial"]
+        constraints = [
+            models.UniqueConstraint(fields=["tenant", "sku"], name="uq_producto_tenant_sku"),
+        ]
         indexes = [
             models.Index(fields=["sku"]),
             models.Index(fields=["nombre_comercial"]),
@@ -123,7 +133,7 @@ class Producto(models.Model):
         return f"{self.sku} - {self.nombre_comercial}"
 
 
-class Inventario(models.Model):
+class Inventario(TenantAwareModel):
     producto = models.OneToOneField(Producto, on_delete=models.CASCADE, related_name="inventario")
     stock_actual = models.PositiveIntegerField(default=0)
     stock_reservado = models.PositiveIntegerField(default=0)
@@ -151,7 +161,7 @@ class Inventario(models.Model):
         return f"Inventario - {self.producto.nombre_comercial}: {self.stock_actual} unidades"
 
 
-class MovimientoInventario(models.Model):
+class MovimientoInventario(TenantAwareModel):
     TIPO_MOVIMIENTO_CHOICES = [
         ("entrada", "Entrada"),
         ("salida", "Salida"),
@@ -217,7 +227,7 @@ class MovimientoInventario(models.Model):
         return f"{self.get_tipo_movimiento_display()} - {self.producto.sku} x{self.cantidad} - {self.fecha_movimiento}"
 
 
-class EntradaStock(models.Model):
+class EntradaStock(TenantAwareModel):
     MOTIVOS_CHOICES = [
         ("reposicion", "Reposición Proveedor"),
         ("devolucion", "Devolución de Cliente"),
