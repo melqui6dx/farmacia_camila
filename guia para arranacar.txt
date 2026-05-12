@@ -1,5 +1,10 @@
 GUIA PARA ARRANCAR EL PROYECTO DESDE CERO
 
+Luego prueba el frontend:
+- Farmacia 1: `http://farmacia1.localhost:5173`
+- Farmacia 2: `http://farmacia2.localhost:5173`
+- SaaS global: `http://localhost:5173
+
 Objetivo
 - Levantar el entorno completo sin arrastrar datos viejos.
 - Crear dos farmacias tenant: farmacia1 y farmacia2.
@@ -222,3 +227,7 @@ docker compose exec backend python manage.py seed_reportes_demo --schema farmaci
 
 Verificación final
 docker compose exec backend python manage.py check 
+
+ENTRENAR MODELO
+docker compose exec backend python manage.py tenant_command entrenar_modelo --schema=farmacia1
+docker compose exec backend python manage.py tenant_command entrenar_modelo --schema=farmacia2
