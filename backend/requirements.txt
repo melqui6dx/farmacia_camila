@@ -21,6 +21,7 @@ stripe==15.1.0
 
 # Reportes con IA
 requests==2.33.1
+google-auth==2.38.0
 
 # Task queue y scheduling (Celery)
 packaging==24.2
