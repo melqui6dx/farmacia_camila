@@ -98,6 +98,8 @@ export const movimientosService = {
 
 export const lotesService = {
   listar: (params) => requestJsonWithAuthRetry(`/api/inventarios/lotes/${buildQuery(params)}`),
+  proximosVencer: (params) => requestJsonWithAuthRetry(`/api/inventarios/lotes/proximos-vencer/${buildQuery(params)}`),
+  vencidos: (params) => requestJsonWithAuthRetry(`/api/inventarios/lotes/vencidos/${buildQuery(params)}`),
   crear: (data) => requestJsonWithAuthRetry('/api/inventarios/lotes/', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },

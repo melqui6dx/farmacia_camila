@@ -5,7 +5,7 @@ import RegistroEntradaStockForm from "../../components/admin/RegistroEntradaStoc
 import HistorialEntradasStock from "../../components/admin/HistorialEntradasStock";
 import InventoryProductCreateModal from "../../components/admin/inventory/InventoryProductCreateModal";
 import { useAuth } from "../../context/AuthContext";
-import { categoriasService, laboratoriosService, movimientosService, productosService, subcategoriasService } from "../../services/inventarioService";
+import { categoriasService, laboratoriosService, lotesService, movimientosService, productosService, subcategoriasService } from "../../services/inventarioService";
 import { listAdminUsers } from "../../services/adminService";
 import { Alert, AlertDescription } from "../../components/ui/alert";
 import { Button } from "../../components/ui/button";
@@ -23,22 +23,77 @@ import {
   SearchIcon,
 } from "../../components/ui/Icons";
 
-const KPI_CARDS = [
-  { title: "Valor total", value: "$25,580.00", helper: "+ 4.2% vs mes anterior", tone: "text-slate-900" },
-  { title: "Alertas activas", value: "18", helper: "Critico · Accion requerida", tone: "text-rose-600", highlight: "border-rose-200" },
-  { title: "Stock bajo", value: "42", helper: "Reabastecimiento sugerido", tone: "text-slate-900" },
-  { title: "Proximo a vencer", value: "156", helper: "Siguientes 30 dias", tone: "text-slate-900" },
-];
+const DAY_LABELS = ["Dom", "Lun", "Mar", "Mie", "Jue", "Vie", "Sab"];
 
-const WEEKLY_MOVEMENT = [
-  { day: "Lun", entrada: 160, salida: 125 },
-  { day: "Mar", entrada: 200, salida: 180 },
-  { day: "Mie", entrada: 230, salida: 150 },
-  { day: "Jue", entrada: 180, salida: 215 },
-  { day: "Vie", entrada: 250, salida: 200 },
-  { day: "Sab", entrada: 125, salida: 80 },
-  { day: "Dom", entrada: 90, salida: 70 },
-];
+function asNumber(value) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function TopNavButton({ active, children, onClick }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`rounded-xl px-3.5 py-2 text-sm font-bold transition ${
+        active
+          ? "bg-slate-900 text-white shadow-sm"
+          : "text-slate-600 hover:bg-white hover:text-slate-900"
+      }`}
+    >
+      {children}
+    </button>
+  );
+}
+
+function SideNavButton({ active, icon: Icon, children, onClick }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`flex w-full items-center gap-2 rounded-xl border px-3 py-2.5 text-left text-sm font-semibold transition ${
+        active
+          ? "border-emerald-200 bg-emerald-50 text-emerald-800 shadow-sm"
+          : "border-transparent text-slate-600 hover:border-slate-200 hover:bg-slate-50 hover:text-slate-900"
+      }`}
+    >
+      <Icon className="h-4 w-4" />
+      <span>{children}</span>
+    </button>
+  );
+}
+
+function AlertRow({ tone = "amber", title, subtitle, value, actionLabel, onAction }) {
+  const tones = {
+    rose: "border-rose-200 bg-rose-50 text-rose-700",
+    amber: "border-amber-200 bg-amber-50 text-amber-700",
+    blue: "border-blue-200 bg-blue-50 text-blue-700",
+    emerald: "border-emerald-200 bg-emerald-50 text-emerald-700",
+  };
+  return (
+    <article className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="flex min-w-0 gap-3">
+          <span className={`inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border ${tones[tone] || tones.amber}`}>
+            <AlertTriangleIcon className="h-5 w-5" />
+          </span>
+          <div className="min-w-0">
+            <h3 className="font-black text-slate-900">{title}</h3>
+            <p className="mt-1 text-sm text-slate-500">{subtitle}</p>
+          </div>
+        </div>
+        <div className="flex shrink-0 items-center gap-2">
+          <span className={`rounded-full border px-3 py-1 text-sm font-black ${tones[tone] || tones.amber}`}>{value}</span>
+          {onAction ? (
+            <button type="button" onClick={onAction} className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-bold text-slate-700 transition hover:bg-slate-50">
+              {actionLabel || "Ver"}
+            </button>
+          ) : null}
+        </div>
+      </div>
+    </article>
+  );
+}
 
 function TypeBadge({ type }) {
   const tone =
@@ -132,6 +187,15 @@ export default function AdminInventariosPage() {
   const [movementDateFrom, setMovementDateFrom] = useState("");
   const [movementDateTo, setMovementDateTo] = useState("");
   const [movementPage, setMovementPage] = useState(1);
+  const [alertsData, setAlertsData] = useState({
+    stockBajo: [],
+    sinStock: [],
+    proximosVencer: [],
+    vencidos: [],
+  });
+  const [loadingAlerts, setLoadingAlerts] = useState(false);
+  const [alertsError, setAlertsError] = useState("");
+  const [alertsRefresh, setAlertsRefresh] = useState(0);
   const STOCK_PAGE_SIZE = 6;
   const MOVEMENTS_PAGE_SIZE = 6;
 
@@ -139,6 +203,15 @@ export default function AdminInventariosPage() {
   const selectedNavTab = searchParams.get("tab") || currentView;
   const canViewInventory = hasPermission("inventario.ver");
   const numberFormatter = useMemo(() => new Intl.NumberFormat("es-BO"), []);
+  const currencyFormatter = useMemo(
+    () => new Intl.NumberFormat("es-BO", { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+    []
+  );
+
+  const formatCurrency = useCallback(
+    (value) => `Bs ${currencyFormatter.format(asNumber(value))}`,
+    [currencyFormatter]
+  );
 
   const handleLogout = async () => {
     await logout();
@@ -220,7 +293,13 @@ export default function AdminInventariosPage() {
   }, [currentView, stockSearch, stockStatusFilter, stockPage, cargarStock]);
 
   useEffect(() => {
-    if (currentView === "stock") cargarResumen();
+    if (currentView === "stock") {
+      setStockStatusFilter(searchParams.get("stock_estado") || "");
+    }
+  }, [currentView, searchParams]);
+
+  useEffect(() => {
+    if (currentView === "dashboard" || currentView === "stock") cargarResumen();
   }, [currentView, cargarResumen]);
 
   useEffect(() => {
@@ -244,6 +323,43 @@ export default function AdminInventariosPage() {
       cancelled = true;
     };
   }, [currentView]);
+
+  useEffect(() => {
+    if (currentView !== "alertas") return;
+    let cancelled = false;
+    const cargarAlertas = async () => {
+      try {
+        setLoadingAlerts(true);
+        setAlertsError("");
+        const [stockBajo, sinStock, proximosVencer, vencidos] = await Promise.all([
+          productosService.stockBajo(),
+          productosService.sinStock(),
+          lotesService.proximosVencer({ dias: 30 }),
+          lotesService.vencidos(),
+        ]);
+        if (!cancelled) {
+          setAlertsData({
+            stockBajo: Array.isArray(stockBajo) ? stockBajo : stockBajo?.results || [],
+            sinStock: Array.isArray(sinStock) ? sinStock : sinStock?.results || [],
+            proximosVencer: Array.isArray(proximosVencer) ? proximosVencer : proximosVencer?.results || [],
+            vencidos: Array.isArray(vencidos) ? vencidos : vencidos?.results || [],
+          });
+        }
+      } catch (error) {
+        console.error("Error cargando alertas:", error);
+        if (!cancelled) {
+          setAlertsError("No se pudieron cargar las alertas de inventario.");
+          setAlertsData({ stockBajo: [], sinStock: [], proximosVencer: [], vencidos: [] });
+        }
+      } finally {
+        if (!cancelled) setLoadingAlerts(false);
+      }
+    };
+    cargarAlertas();
+    return () => {
+      cancelled = true;
+    };
+  }, [currentView, alertsRefresh]);
 
   useEffect(() => {
     if (currentView !== "movimientos") return;
@@ -562,6 +678,68 @@ export default function AdminInventariosPage() {
     [filteredMovementRows.length]
   );
 
+  const dashboardCards = useMemo(
+    () => [
+      {
+        title: "Valor inventario",
+        value: loadingResumen ? "-" : formatCurrency(stockResumen?.valor_total_costo),
+        helper: `${numberFormatter.format(asNumber(stockResumen?.stock_total_unidades))} unidades en stock`,
+        tone: "text-slate-900",
+      },
+      {
+        title: "Alertas activas",
+        value: loadingResumen ? "-" : numberFormatter.format(asNumber(stockResumen?.alertas_activas)),
+        helper: `${numberFormatter.format(asNumber(stockResumen?.stock_bajo))} stock bajo · ${numberFormatter.format(asNumber(stockResumen?.lotes_proximos_vencer))} por vencer`,
+        tone: "text-rose-600",
+        highlight: asNumber(stockResumen?.alertas_activas) > 0 ? "border-rose-200" : "",
+      },
+      {
+        title: "Stock bajo",
+        value: loadingResumen ? "-" : numberFormatter.format(asNumber(stockResumen?.stock_bajo)),
+        helper: `${numberFormatter.format(asNumber(stockResumen?.sin_stock))} sin stock`,
+        tone: "text-amber-700",
+      },
+      {
+        title: "Proximo a vencer",
+        value: loadingResumen ? "-" : numberFormatter.format(asNumber(stockResumen?.lotes_proximos_vencer)),
+        helper: `${numberFormatter.format(asNumber(stockResumen?.lotes_vencidos))} lotes vencidos`,
+        tone: "text-slate-900",
+      },
+    ],
+    [formatCurrency, loadingResumen, numberFormatter, stockResumen]
+  );
+
+  const weeklyMovement = useMemo(() => {
+    const rows = Array.isArray(stockResumen?.movimiento_semanal) ? stockResumen.movimiento_semanal : [];
+    if (!rows.length) {
+      const today = new Date();
+      return Array.from({ length: 7 }, (_, index) => {
+        const day = new Date(today);
+        day.setDate(today.getDate() - (6 - index));
+        return { day: DAY_LABELS[day.getDay()], entrada: 0, salida: 0 };
+      });
+    }
+    return rows.map((item) => {
+      const parsedDate = item?.fecha ? new Date(`${item.fecha}T00:00:00`) : null;
+      const label = parsedDate && !Number.isNaN(parsedDate.getTime()) ? DAY_LABELS[parsedDate.getDay()] : item?.day || "-";
+      return {
+        day: label,
+        entrada: asNumber(item?.entrada),
+        salida: asNumber(item?.salida),
+      };
+    });
+  }, [stockResumen]);
+
+  const chartMax = useMemo(
+    () => Math.max(...weeklyMovement.flatMap((item) => [item.entrada, item.salida]), 1),
+    [weeklyMovement]
+  );
+  const controlledProducts = asNumber(stockResumen?.productos_controlados);
+  const monthlyMovements = asNumber(stockResumen?.movimientos_mes);
+  const auditProgress = controlledProducts ? Math.min(100, Math.round((monthlyMovements / controlledProducts) * 100)) : 0;
+  const totalAlerts =
+    alertsData.stockBajo.length + alertsData.sinStock.length + alertsData.proximosVencer.length + alertsData.vencidos.length;
+
   if (!canViewInventory) {
     return (
       <AdminLayout activeSection="inventory" currentUser={user} onLogout={handleLogout}>
@@ -572,8 +750,6 @@ export default function AdminInventariosPage() {
       </AdminLayout>
     );
   }
-
-  const chartMax = Math.max(...WEEKLY_MOVEMENT.flatMap((item) => [item.entrada, item.salida]), 1);
 
   return (
     <AdminLayout activeSection="inventory" currentUser={user} onLogout={handleLogout}>
@@ -586,34 +762,19 @@ export default function AdminInventariosPage() {
               <p className="mt-1 text-sm text-slate-500">Vista operativa del inventario con metricas clave, movimientos y control de auditoria.</p>
             </div>
             <div className="flex flex-1 flex-wrap items-center justify-between gap-3">
-              <div className="flex flex-wrap items-center gap-1 text-xs font-semibold text-slate-500">
-                <button
-                  type="button"
-                  onClick={() => setView("dashboard", { tab: "dashboard" })}
-                  className={`rounded-sm border px-2 py-1 transition-colors ${selectedNavTab === "dashboard" ? "border-blue-500 bg-blue-50 text-blue-700" : "border-transparent text-slate-600 hover:border-slate-300 hover:text-slate-900"}`}
-                >
+              <div className="inline-flex flex-wrap items-center gap-1 rounded-2xl border border-slate-200 bg-slate-100 p-1">
+                <TopNavButton active={selectedNavTab === "dashboard"} onClick={() => setView("dashboard", { tab: "dashboard" })}>
                   Dashboard
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setView("stock", { tab: "stock" })}
-                  className={`rounded-sm border px-2 py-1 transition-colors ${selectedNavTab === "stock" ? "border-blue-500 bg-blue-50 text-blue-700" : "border-transparent text-slate-600 hover:border-slate-300 hover:text-slate-900"}`}
-                >
+                </TopNavButton>
+                <TopNavButton active={selectedNavTab === "stock"} onClick={() => setView("stock", { tab: "stock" })}>
                   Inventario
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setView("movimientos", { tab: "movimientos" })}
-                  className={`rounded-sm border px-2 py-1 transition-colors ${selectedNavTab === "movimientos" ? "border-blue-500 bg-blue-50 text-blue-700" : "border-transparent text-slate-600 hover:border-slate-300 hover:text-slate-900"}`}
-                >
+                </TopNavButton>
+                <TopNavButton active={selectedNavTab === "movimientos" || selectedNavTab === "ajustes"} onClick={() => setView("movimientos", { tab: "movimientos" })}>
                   Movimientos
-                </button>
-                <button
-                  type="button"
-                  className="rounded-sm border border-transparent px-2 py-1 text-slate-600 transition-colors hover:border-slate-300 hover:text-slate-900"
-                >
+                </TopNavButton>
+                <TopNavButton active={selectedNavTab === "alertas"} onClick={() => setView("alertas", { tab: "alertas" })}>
                   Alertas
-                </button>
+                </TopNavButton>
               </div>
               <Button size="sm" className="bg-emerald-600 text-white hover:bg-emerald-500" onClick={() => setView("entradas", { tab: selectedNavTab })}>
                 Registrar Entrada
@@ -628,45 +789,21 @@ export default function AdminInventariosPage() {
               <aside className="flex h-full flex-col rounded-2xl border border-slate-200 bg-white p-3">
                 <p className="px-1 text-[10px] font-bold uppercase tracking-[0.18em] text-slate-500">Operaciones</p>
                 <nav className="mt-2 space-y-1 text-sm">
-                  <button
-                    type="button"
-                    onClick={() => setView("dashboard", { tab: "dashboard" })}
-                    className={`flex w-full items-center gap-2 rounded-xl px-3 py-2 ${
-                      selectedNavTab === "dashboard" ? "bg-emerald-100 font-semibold text-emerald-800" : "text-slate-600 hover:bg-slate-100"
-                    }`}
-                  >
-                    <PackageIcon className="h-4 w-4" /> Dashboard
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setView("stock", { tab: "stock" })}
-                    className={`flex w-full items-center gap-2 rounded-xl px-3 py-2 ${
-                      selectedNavTab === "stock" ? "bg-emerald-100 font-semibold text-emerald-800" : "text-slate-600 hover:bg-slate-100"
-                    }`}
-                  >
-                    <ClipboardListIcon className="h-4 w-4" /> Inventario
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setView("movimientos", { tab: "movimientos" })}
-                    className={`flex w-full items-center gap-2 rounded-xl px-3 py-2 ${
-                      selectedNavTab === "movimientos" ? "bg-emerald-100 font-semibold text-emerald-800" : "text-slate-600 hover:bg-slate-100"
-                    }`}
-                  >
-                    <ChartBarIcon className="h-4 w-4" /> Movimientos
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setView("movimientos", { tab: "movimientos", tipo_movimiento: "ajuste" })}
-                    className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-slate-600 hover:bg-slate-100"
-                  >
-                    <CogIcon className="h-4 w-4" /> Ajustes
-                  </button>
-                </nav>
-                <p className="mt-4 px-1 text-[10px] font-bold uppercase tracking-[0.18em] text-slate-500">Control de calidad</p>
-                <nav className="mt-2 space-y-1 text-sm">
-                  <button className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-slate-600 hover:bg-slate-100"><AlertTriangleIcon className="h-4 w-4" /> Mermas</button>
-                  <button className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-slate-600 hover:bg-slate-100"><ClipboardListIcon className="h-4 w-4" /> Reportes</button>
+                  <SideNavButton active={selectedNavTab === "dashboard"} icon={PackageIcon} onClick={() => setView("dashboard", { tab: "dashboard" })}>
+                    Dashboard
+                  </SideNavButton>
+                  <SideNavButton active={selectedNavTab === "stock"} icon={ClipboardListIcon} onClick={() => setView("stock", { tab: "stock" })}>
+                    Inventario
+                  </SideNavButton>
+                  <SideNavButton active={selectedNavTab === "movimientos"} icon={ChartBarIcon} onClick={() => setView("movimientos", { tab: "movimientos" })}>
+                    Movimientos
+                  </SideNavButton>
+                  <SideNavButton active={selectedNavTab === "alertas"} icon={AlertTriangleIcon} onClick={() => setView("alertas", { tab: "alertas" })}>
+                    Alertas
+                  </SideNavButton>
+                  <SideNavButton active={selectedNavTab === "ajustes"} icon={CogIcon} onClick={() => setView("movimientos", { tab: "ajustes", tipo_movimiento: "ajuste" })}>
+                    Ajustes
+                  </SideNavButton>
                 </nav>
                 <section className="mt-auto rounded-2xl border border-slate-200 bg-slate-50 p-3">
                   <div className="flex items-center justify-between">
@@ -681,7 +818,7 @@ export default function AdminInventariosPage() {
 
               <main className="space-y-3">
                 <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-                  {KPI_CARDS.map((card) => (
+                  {dashboardCards.map((card) => (
                     <article key={card.title} className={`rounded-2xl border border-slate-200 bg-white p-4 ${card.highlight || ""}`}>
                       <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-slate-500">{card.title}</p>
                       <p className={`mt-2 text-3xl font-black ${card.tone}`}>{card.value}</p>
@@ -703,7 +840,7 @@ export default function AdminInventariosPage() {
                       </div>
                     </div>
                     <div className="mt-5 grid grid-cols-7 gap-3">
-                      {WEEKLY_MOVEMENT.map((item) => (
+                      {weeklyMovement.map((item) => (
                         <div key={item.day} className="flex flex-col items-center gap-2">
                           <div className="flex h-40 items-end gap-1">
                             <div className="w-3 rounded-t bg-blue-700" style={{ height: `${(item.entrada / chartMax) * 100}%` }}></div>
@@ -717,11 +854,17 @@ export default function AdminInventariosPage() {
 
                   <article className="rounded-2xl bg-blue-700 p-4 text-white">
                     <h3 className="text-lg font-black">Auditoria Pendiente</h3>
-                    <p className="mt-2 text-sm text-blue-100">Sector A1 - Farmaceuticos controlados. Requiere verificacion de ciclo trimestral.</p>
+                    <p className="mt-2 text-sm text-blue-100">
+                      {controlledProducts
+                        ? "Productos controlados y movimientos del mes para revision operativa."
+                        : "No hay productos controlados registrados para auditoria especial."}
+                    </p>
                     <div className="mt-12">
                       <p className="text-xs text-blue-100">Progreso</p>
-                      <div className="mt-2 h-2 rounded-full bg-blue-400"><div className="h-2 w-1/4 rounded-full bg-white"></div></div>
-                      <p className="mt-2 text-xs font-semibold">0 / 45 SKUs</p>
+                      <div className="mt-2 h-2 rounded-full bg-blue-400"><div className="h-2 rounded-full bg-white" style={{ width: `${auditProgress}%` }}></div></div>
+                      <p className="mt-2 text-xs font-semibold">
+                        {numberFormatter.format(monthlyMovements)} movimientos · {numberFormatter.format(controlledProducts)} SKUs controlados
+                      </p>
                       <Button className="mt-4 w-full bg-white text-blue-700 hover:bg-blue-50">Iniciar auditoria</Button>
                     </div>
                   </article>
@@ -803,6 +946,151 @@ export default function AdminInventariosPage() {
                     </div>
                 </div>
                 </article>
+              </main>
+            </div>
+          </section>
+        ) : null}
+
+        {currentView === "alertas" ? (
+          <section className="rounded-[28px] border border-slate-200 bg-slate-100/70 p-3 shadow-md">
+            <div className="grid gap-3 xl:grid-cols-[280px_minmax(0,1fr)]">
+              <aside className="rounded-2xl border border-slate-200 bg-white p-4">
+                <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-500">Resumen alertas</p>
+                <div className="mt-4 space-y-3">
+                  <SummaryCard label="Total activas" value={loadingAlerts ? "-" : numberFormatter.format(totalAlerts)} helper="Stock y vencimientos" />
+                  <SummaryCard label="Stock bajo" value={loadingAlerts ? "-" : numberFormatter.format(alertsData.stockBajo.length)} helper="Reabastecimiento" />
+                  <SummaryCard label="Por vencer" value={loadingAlerts ? "-" : numberFormatter.format(alertsData.proximosVencer.length)} helper="Siguientes 30 dias" />
+                </div>
+                <Button className="mt-4 w-full" onClick={() => setView("stock", { tab: "stock", stock_estado: "stock_bajo" })}>
+                  Revisar inventario
+                </Button>
+              </aside>
+
+              <main className="space-y-4">
+                <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                      <p className="text-xs font-bold uppercase tracking-[0.18em] text-rose-600">Control operativo</p>
+                      <h2 className="mt-1 text-2xl font-black text-slate-900">Alertas de inventario</h2>
+                      <p className="mt-1 text-sm text-slate-500">Productos con riesgo de quiebre, lotes próximos a vencer y lotes vencidos.</p>
+                    </div>
+                    <Button variant="secondary" size="sm" onClick={() => setAlertsRefresh((value) => value + 1)} disabled={loadingAlerts}>
+                      {loadingAlerts ? "Actualizando..." : "Actualizar"}
+                    </Button>
+                  </div>
+                  {alertsError ? (
+                    <Alert tone="danger" className="mt-4">
+                      <AlertDescription>{alertsError}</AlertDescription>
+                    </Alert>
+                  ) : null}
+                </section>
+
+                <div className="grid gap-3 md:grid-cols-2">
+                  <AlertRow
+                    tone="rose"
+                    title="Productos sin stock"
+                    subtitle="No disponibles para venta hasta registrar una entrada."
+                    value={loadingAlerts ? "-" : numberFormatter.format(alertsData.sinStock.length)}
+                    actionLabel="Ver stock"
+                    onAction={() => setView("stock", { tab: "stock", stock_estado: "sin_stock" })}
+                  />
+                  <AlertRow
+                    tone="amber"
+                    title="Productos con stock bajo"
+                    subtitle="Unidades actuales por debajo o igual al mínimo configurado."
+                    value={loadingAlerts ? "-" : numberFormatter.format(alertsData.stockBajo.length)}
+                    actionLabel="Filtrar"
+                    onAction={() => setView("stock", { tab: "stock", stock_estado: "stock_bajo" })}
+                  />
+                  <AlertRow
+                    tone="blue"
+                    title="Lotes próximos a vencer"
+                    subtitle="Lotes disponibles que vencen dentro de los siguientes 30 días."
+                    value={loadingAlerts ? "-" : numberFormatter.format(alertsData.proximosVencer.length)}
+                  />
+                  <AlertRow
+                    tone="rose"
+                    title="Lotes vencidos"
+                    subtitle="Lotes con unidades disponibles cuya fecha de vencimiento ya pasó."
+                    value={loadingAlerts ? "-" : numberFormatter.format(alertsData.vencidos.length)}
+                  />
+                </div>
+
+                <section className="grid gap-4 xl:grid-cols-2">
+                  <article className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                    <h3 className="text-lg font-black text-slate-900">Stock critico</h3>
+                    <div className="mt-3 overflow-hidden rounded-xl border border-slate-200">
+                      <table className="min-w-full text-sm">
+                        <thead className="bg-slate-50 text-left text-[11px] font-bold uppercase tracking-[0.14em] text-slate-500">
+                          <tr>
+                            <th className="px-3 py-2">Producto</th>
+                            <th className="px-3 py-2 text-right">Actual</th>
+                            <th className="px-3 py-2 text-right">Minimo</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {loadingAlerts ? (
+                            <tr><td colSpan="3" className="px-3 py-8 text-center text-slate-500">Cargando alertas...</td></tr>
+                          ) : [...alertsData.sinStock, ...alertsData.stockBajo].length ? (
+                            [...alertsData.sinStock, ...alertsData.stockBajo].slice(0, 8).map((item) => (
+                              <tr key={`stock-${item.id}`} className="border-t border-slate-100">
+                                <td className="px-3 py-2">
+                                  <p className="font-semibold text-slate-800">{item.nombre_comercial || "Producto"}</p>
+                                  <p className="text-xs text-slate-500">{item.sku || "-"}</p>
+                                </td>
+                                <td className="px-3 py-2 text-right font-black text-slate-900">{numberFormatter.format(asNumber(item?.inventario?.stock_actual))}</td>
+                                <td className="px-3 py-2 text-right text-slate-600">{numberFormatter.format(asNumber(item?.stock_minimo))}</td>
+                              </tr>
+                            ))
+                          ) : (
+                            <tr><td colSpan="3" className="px-3 py-8 text-center text-slate-500">Sin alertas de stock.</td></tr>
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  </article>
+
+                  <article className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                    <h3 className="text-lg font-black text-slate-900">Vencimientos</h3>
+                    <div className="mt-3 overflow-hidden rounded-xl border border-slate-200">
+                      <table className="min-w-full text-sm">
+                        <thead className="bg-slate-50 text-left text-[11px] font-bold uppercase tracking-[0.14em] text-slate-500">
+                          <tr>
+                            <th className="px-3 py-2">Lote</th>
+                            <th className="px-3 py-2">Vence</th>
+                            <th className="px-3 py-2 text-right">Cant.</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {loadingAlerts ? (
+                            <tr><td colSpan="3" className="px-3 py-8 text-center text-slate-500">Cargando vencimientos...</td></tr>
+                          ) : [...alertsData.vencidos, ...alertsData.proximosVencer].length ? (
+                            [...alertsData.vencidos, ...alertsData.proximosVencer].slice(0, 8).map((lote) => {
+                              const vence = lote.fecha_vencimiento ? new Date(`${lote.fecha_vencimiento}T00:00:00`) : null;
+                              const dias = vence ? Math.ceil((vence.getTime() - Date.now()) / 86400000) : null;
+                              const tone = dias !== null && dias < 0 ? "text-rose-600" : dias !== null && dias <= 30 ? "text-amber-700" : "text-slate-600";
+                              return (
+                                <tr key={`lote-${lote.id}`} className="border-t border-slate-100">
+                                  <td className="px-3 py-2">
+                                    <p className="font-semibold text-slate-800">{lote.producto_nombre || "Producto"}</p>
+                                    <p className="text-xs text-slate-500">Lote {lote.numero_lote || "-"}</p>
+                                  </td>
+                                  <td className={`px-3 py-2 font-semibold ${tone}`}>
+                                    {lote.fecha_vencimiento || "-"}
+                                    <p className="text-xs font-medium text-slate-500">{dias === null ? "" : dias < 0 ? `${Math.abs(dias)} dias vencido` : `${dias} dias`}</p>
+                                  </td>
+                                  <td className="px-3 py-2 text-right font-black text-slate-900">{numberFormatter.format(asNumber(lote.cantidad_disponible))}</td>
+                                </tr>
+                              );
+                            })
+                          ) : (
+                            <tr><td colSpan="3" className="px-3 py-8 text-center text-slate-500">Sin alertas de vencimiento.</td></tr>
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  </article>
+                </section>
               </main>
             </div>
           </section>
@@ -1104,10 +1392,10 @@ export default function AdminInventariosPage() {
                 <h2 className="text-2xl font-black text-slate-900">Movimientos</h2>
               </div>
               <div className="grid gap-3 md:grid-cols-4">
-                <SummaryCard label="Entradas Mensuales" value={numberFormatter.format(filteredMovementRows.filter((r) => r?.tipo_movimiento === "entrada").length)} helper="+12.5%" />
-                <SummaryCard label="Ventas/Salidas" value={numberFormatter.format(filteredMovementRows.filter((r) => ["venta", "salida"].includes(r?.tipo_movimiento)).length)} helper="+3.2%" />
-                <SummaryCard label="Mermas (critico)" value={numberFormatter.format(filteredMovementRows.filter((r) => ["merma", "vencimiento"].includes(r?.tipo_movimiento)).length)} helper="-5.4%" />
-                <SummaryCard label="Valor total auditado" value="$1.2M" helper="Estimado" />
+                <SummaryCard label="Entradas Mensuales" value={numberFormatter.format(asNumber(stockResumen?.entradas_mes))} helper={`${numberFormatter.format(asNumber(stockResumen?.unidades_entradas_mes))} unidades`} />
+                <SummaryCard label="Ventas/Salidas" value={numberFormatter.format(asNumber(stockResumen?.salidas_mes))} helper={`${numberFormatter.format(asNumber(stockResumen?.unidades_salidas_mes))} unidades`} />
+                <SummaryCard label="Bajas criticas" value={numberFormatter.format(asNumber(stockResumen?.mermas_mes))} helper={`${numberFormatter.format(asNumber(stockResumen?.lotes_vencidos))} vencidos`} />
+                <SummaryCard label="Valor total auditado" value={formatCurrency(stockResumen?.valor_total_costo)} helper="Costo actual de inventario" />
               </div>
 
               <div className="mt-4 grid gap-3 md:grid-cols-5">

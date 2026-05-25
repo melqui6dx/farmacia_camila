@@ -4,10 +4,10 @@ from rest_framework.pagination import PageNumberPagination
 from rest_framework.response import Response
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from django.shortcuts import get_object_or_404
-from django.db.models import F, Sum
+from django.db.models import DecimalField, ExpressionWrapper, F, Sum
 from django.utils.dateparse import parse_date
 from django.utils import timezone
-from datetime import datetime, time
+from datetime import datetime, time, timedelta
 
 from core.rbac import tiene_permiso, ROLE_FARMACEUTICO
 from core.audit import log_system_event
@@ -270,16 +270,84 @@ class ProductoViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=["get"])
     def resumen_stock(self, request):
         qs = Producto.objects.select_related("inventario").filter(estado=True)
-        agg = qs.aggregate(stock_total=Sum("inventario__stock_actual"))
+        today = timezone.localdate()
+        month_start = today.replace(day=1)
+        expiry_limit = today + timedelta(days=30)
+        valor_costo_expr = ExpressionWrapper(
+            F("inventario__stock_actual") * F("precio_compra"),
+            output_field=DecimalField(max_digits=16, decimal_places=2),
+        )
+        valor_venta_expr = ExpressionWrapper(
+            F("inventario__stock_actual") * F("precio_venta"),
+            output_field=DecimalField(max_digits=16, decimal_places=2),
+        )
+        agg = qs.aggregate(
+            stock_total=Sum("inventario__stock_actual"),
+            valor_total_costo=Sum(valor_costo_expr),
+            valor_total_venta=Sum(valor_venta_expr),
+        )
+        sin_stock = qs.filter(inventario__stock_actual__lte=0).count()
+        stock_bajo = qs.filter(
+            inventario__stock_actual__gt=0,
+            inventario__stock_actual__lte=F("stock_minimo"),
+        ).count()
+        disponible = qs.filter(inventario__stock_actual__gt=F("stock_minimo")).count()
+
+        lotes_activos = LoteProducto.objects.select_related("producto").filter(
+            producto__estado=True,
+            cantidad_disponible__gt=0,
+        )
+        lotes_proximos = lotes_activos.filter(
+            estado="disponible",
+            fecha_vencimiento__gte=today,
+            fecha_vencimiento__lte=expiry_limit,
+        )
+        lotes_vencidos = lotes_activos.filter(fecha_vencimiento__lt=today).exclude(estado__in=["retirado", "agotado"])
+        lotes_bloqueados = lotes_activos.filter(estado="bloqueado").count()
+
+        movimientos_mes = MovimientoInventario.objects.filter(fecha_movimiento__date__gte=month_start)
+        entradas_mes = movimientos_mes.filter(tipo_movimiento="entrada")
+        salidas_mes = movimientos_mes.filter(tipo_movimiento="salida")
+        ajustes_mes = movimientos_mes.filter(tipo_movimiento="ajuste")
+        mermas_mes = salidas_mes.filter(motivo__in=["merma", "devolucion_proveedor"])
+
+        weekly = []
+        week_start = today - timedelta(days=6)
+        for offset in range(7):
+            day = week_start + timedelta(days=offset)
+            day_qs = MovimientoInventario.objects.filter(fecha_movimiento__date=day)
+            entradas = day_qs.filter(tipo_movimiento="entrada").aggregate(total=Sum("cantidad"))["total"] or 0
+            salidas = day_qs.filter(tipo_movimiento="salida").aggregate(total=Sum("cantidad"))["total"] or 0
+            weekly.append({
+                "day": day.strftime("%a"),
+                "fecha": day.isoformat(),
+                "entrada": int(entradas),
+                "salida": int(salidas),
+            })
+
+        alertas_activas = stock_bajo + sin_stock + lotes_proximos.count() + lotes_vencidos.count() + lotes_bloqueados
         return Response({
             "total_productos": qs.count(),
-            "sin_stock": qs.filter(inventario__stock_actual__lte=0).count(),
-            "stock_bajo": qs.filter(
-                inventario__stock_actual__gt=0,
-                inventario__stock_actual__lte=F("stock_minimo"),
-            ).count(),
-            "disponible": qs.filter(inventario__stock_actual__gt=F("stock_minimo")).count(),
+            "sin_stock": sin_stock,
+            "stock_bajo": stock_bajo,
+            "disponible": disponible,
             "stock_total_unidades": int(agg["stock_total"] or 0),
+            "valor_total_costo": str(agg["valor_total_costo"] or "0.00"),
+            "valor_total_venta": str(agg["valor_total_venta"] or "0.00"),
+            "alertas_activas": alertas_activas,
+            "lotes_proximos_vencer": lotes_proximos.count(),
+            "productos_proximos_vencer": lotes_proximos.values("producto_id").distinct().count(),
+            "lotes_vencidos": lotes_vencidos.count(),
+            "lotes_bloqueados": lotes_bloqueados,
+            "movimientos_mes": movimientos_mes.count(),
+            "entradas_mes": entradas_mes.count(),
+            "salidas_mes": salidas_mes.count(),
+            "ajustes_mes": ajustes_mes.count(),
+            "mermas_mes": mermas_mes.count(),
+            "unidades_entradas_mes": int(entradas_mes.aggregate(total=Sum("cantidad"))["total"] or 0),
+            "unidades_salidas_mes": int(salidas_mes.aggregate(total=Sum("cantidad"))["total"] or 0),
+            "productos_controlados": qs.filter(es_controlado=True).count(),
+            "movimiento_semanal": weekly,
         })
 
     @action(detail=True, methods=["get"])
@@ -429,6 +497,34 @@ class LoteProductoViewSet(viewsets.ModelViewSet):
         if estado:
             queryset = queryset.filter(estado=estado)
         return queryset.order_by("-fecha_ingreso")
+
+    @action(detail=False, methods=["get"], url_path="proximos-vencer")
+    def proximos_vencer(self, request):
+        try:
+            dias = int(request.query_params.get("dias", 30))
+        except (TypeError, ValueError):
+            dias = 30
+        dias = max(1, min(dias, 365))
+        hoy = timezone.localdate()
+        limite = hoy + timedelta(days=dias)
+        lotes = self.get_queryset().filter(
+            estado="disponible",
+            cantidad_disponible__gt=0,
+            fecha_vencimiento__gte=hoy,
+            fecha_vencimiento__lte=limite,
+        ).order_by("fecha_vencimiento", "producto__nombre_comercial")
+        return Response(self.get_serializer(lotes, many=True).data)
+
+    @action(detail=False, methods=["get"])
+    def vencidos(self, request):
+        hoy = timezone.localdate()
+        lotes = (
+            self.get_queryset()
+            .filter(cantidad_disponible__gt=0, fecha_vencimiento__lt=hoy)
+            .exclude(estado__in=["agotado", "retirado"])
+            .order_by("fecha_vencimiento", "producto__nombre_comercial")
+        )
+        return Response(self.get_serializer(lotes, many=True).data)
 
     @action(detail=True, methods=["patch"])
     def bloquear(self, request, pk=None):

@@ -133,6 +133,7 @@ class MovimientoInventarioSerializer(serializers.ModelSerializer):
         fields = [
             "id", "producto", "producto_nombre", "producto_sku",
             "lote", "lote_numero", "tipo_movimiento", "cantidad", "motivo", "referencia",
+            "stock_anterior", "stock_posterior",
             "usuario", "usuario_nombre", "fecha_movimiento", "observacion", "created_at"
         ]
         read_only_fields = ["id", "fecha_movimiento", "created_at"]

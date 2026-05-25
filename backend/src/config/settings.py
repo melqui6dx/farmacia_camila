@@ -285,8 +285,9 @@ STRIPE_WEBHOOK_SECRET = os.getenv("STRIPE_WEBHOOK_SECRET", "")
 
 # Gemini reports assistant
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
-GEMINI_REPORTS_MODEL = os.getenv("GEMINI_REPORTS_MODEL", "gemini-3.1-flash-lite")
+GEMINI_REPORTS_MODEL = os.getenv("GEMINI_REPORTS_MODEL", "gemini-2.5-flash")
 GEMINI_AUDIO_MODEL = os.getenv("GEMINI_AUDIO_MODEL", GEMINI_REPORTS_MODEL)
+GEMINI_FALLBACK_MODELS = os.getenv("GEMINI_FALLBACK_MODELS", "gemini-2.5-flash,gemini-2.0-flash,gemini-2.0-flash-lite")
 
 
 LOGGING = {

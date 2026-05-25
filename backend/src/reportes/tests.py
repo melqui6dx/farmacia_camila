@@ -3,15 +3,65 @@ from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
 from django.db import connection
+from django.test import SimpleTestCase, override_settings
 from django_tenants.utils import schema_context
 from rest_framework import status
 from rest_framework.test import APITestCase
+from requests import Response
 
 from clientes.models import Cliente
 from inventarios.models import Categoria, Inventario, Laboratorio, Producto
+from reportes.services import _gemini_error_message
 from tenants.context import clear_current_tenant, set_current_tenant
 from tenants.models import Domain, Tenant
 from ventas.models import DetalleVenta, Venta
+
+
+class GeminiErrorMessageTests(SimpleTestCase):
+    def _response(self, status_code, content):
+        response = Response()
+        response.status_code = status_code
+        response._content = content
+        return response
+
+    def test_mensaje_gemini_key_invalida(self):
+        response = self._response(403, b'{"error":{"message":"API key not valid"}}')
+
+        message = _gemini_error_message(response, "gemini-3.1-flash-lite")
+
+        self.assertIn("GEMINI_API_KEY", message)
+        self.assertIn("valida", message)
+
+    def test_mensaje_gemini_modelo_no_disponible(self):
+        response = self._response(404, b'{"error":{"message":"model not found"}}')
+
+        message = _gemini_error_message(response, "gemini-no-existe")
+
+        self.assertIn("Modelo Gemini no disponible", message)
+        self.assertIn("gemini-no-existe", message)
+
+    @override_settings(
+        GEMINI_API_KEY="test-key",
+        GEMINI_REPORTS_MODEL="gemini-no-existe",
+        GEMINI_FALLBACK_MODELS="gemini-2.5-flash",
+    )
+    @patch("reportes.services.requests.post")
+    def test_gemini_usa_fallback_si_modelo_configurado_no_existe(self, mocked_post):
+        from reportes.services import _gemini_generate_content
+
+        not_found = self._response(404, b'{"error":{"message":"model not found"}}')
+        ok = self._response(
+            200,
+            b'{"candidates":[{"content":{"parts":[{"text":"{\\"resultado\\":\\"ok\\"}"}]}}]}',
+        )
+        mocked_post.side_effect = [not_found, ok]
+
+        result = _gemini_generate_content([{"text": "hola"}])
+
+        self.assertEqual(result, '{"resultado":"ok"}')
+        self.assertEqual(mocked_post.call_count, 2)
+        self.assertIn("gemini-no-existe", mocked_post.call_args_list[0].args[0])
+        self.assertIn("gemini-2.5-flash", mocked_post.call_args_list[1].args[0])
 
 
 class ReportesApiTests(APITestCase):
