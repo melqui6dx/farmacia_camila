@@ -53,6 +53,7 @@ TENANT_APPS = [
     "inventarios",
     "backup",
     "clientes",
+    "tratamientos",
     "ventas",
     "carrito",
     "predicciones",
@@ -287,6 +288,12 @@ STRIPE_WEBHOOK_SECRET = os.getenv("STRIPE_WEBHOOK_SECRET", "")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 GEMINI_REPORTS_MODEL = os.getenv("GEMINI_REPORTS_MODEL", "gemini-3.1-flash-lite")
 GEMINI_AUDIO_MODEL = os.getenv("GEMINI_AUDIO_MODEL", GEMINI_REPORTS_MODEL)
+
+# Firebase Cloud Messaging
+FCM_PROJECT_ID = os.getenv("FCM_PROJECT_ID", "")
+FIREBASE_SERVICE_ACCOUNT_FILE = os.getenv("FIREBASE_SERVICE_ACCOUNT_FILE", "")
+FCM_API_KEY = os.getenv("FCM_API_KEY", "")
+FCM_SENDER_ID = os.getenv("FCM_SENDER_ID", "")
 
 
 LOGGING = {
