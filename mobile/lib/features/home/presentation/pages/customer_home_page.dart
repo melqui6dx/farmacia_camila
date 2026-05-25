@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import '../../../cart/customer_cart_tab.dart'; 
+import '../../../cart/customer_cart_tab.dart';
 import '../../../catalog/customer_catalog_tab.dart';
 import '../../../payments/my_payments_page.dart';
+import '../../../treatments/presentation/pages/treatments_catalog_page.dart';
 import '../../../../core/auth/auth_session_manager.dart';
 import '../../../auth/data/models/auth_user.dart';
 import '../../../auth/presentation/pages/login_page.dart';
@@ -16,8 +17,6 @@ class CustomerHomePage extends StatefulWidget {
 
 class _CustomerHomePageState extends State<CustomerHomePage> {
   int _selectedIndex = 0;
-  int? _clienteId;
-  String? _accessToken; 
   bool _isSyncing = true;
 
   @override
@@ -39,7 +38,6 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
         return;
       }
 
-      _accessToken = session.accessToken;
       print("✅ Usuario autenticado: ${session.user.email}");
     } catch (e) {
       print("🚨 Error de conexión: $e");
@@ -53,7 +51,9 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
     if (_isSyncing) {
       return const Scaffold(
         backgroundColor: Color(0xFFF8FAF9),
-        body: Center(child: CircularProgressIndicator(color: Color(0xFF006A5E))),
+        body: Center(
+          child: CircularProgressIndicator(color: Color(0xFF006A5E)),
+        ),
       );
     }
 
@@ -65,8 +65,8 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
           );
         },
       ),
-      CustomerCatalogTab(clienteId: _clienteId, accessToken: _accessToken),
-      const CartTab(), 
+      const CustomerCatalogTab(),
+      const CartTab(),
       const _ProfileTab(),
     ];
 
@@ -75,7 +75,11 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
       appBar: AppBar(
         title: Text(
           'Farmacia Bibosi',
-          style: GoogleFonts.manrope(fontWeight: FontWeight.w800, fontSize: 22, color: const Color(0xFF191C1C)),
+          style: GoogleFonts.manrope(
+            fontWeight: FontWeight.w800,
+            fontSize: 22,
+            color: const Color(0xFF191C1C),
+          ),
         ),
         centerTitle: false,
         backgroundColor: const Color(0xFFF8FAF9),
@@ -89,7 +93,11 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
               border: Border.all(color: const Color(0xFFE0E3E1)),
             ),
             child: IconButton(
-              icon: const Icon(Icons.notifications_active_outlined, color: Color(0xFF191C1C), size: 22),
+              icon: const Icon(
+                Icons.notifications_active_outlined,
+                color: Color(0xFF191C1C),
+                size: 22,
+              ),
               onPressed: () {},
             ),
           ),
@@ -104,7 +112,8 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
       ),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _selectedIndex,
-        onDestinationSelected: (index) => setState(() => _selectedIndex = index),
+        onDestinationSelected: (index) =>
+            setState(() => _selectedIndex = index),
         backgroundColor: Colors.white,
         elevation: 10,
         shadowColor: Colors.black.withOpacity(0.1),
@@ -112,24 +121,45 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
         labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
         destinations: [
           NavigationDestination(
-            icon: const Icon(Icons.space_dashboard_outlined, color: Color(0xFF3E4946)), 
-            selectedIcon: const Icon(Icons.space_dashboard_rounded, color: Color(0xFF006A5E)), 
-            label: 'Inicio'
+            icon: const Icon(
+              Icons.space_dashboard_outlined,
+              color: Color(0xFF3E4946),
+            ),
+            selectedIcon: const Icon(
+              Icons.space_dashboard_rounded,
+              color: Color(0xFF006A5E),
+            ),
+            label: 'Inicio',
           ),
           NavigationDestination(
-            icon: const Icon(Icons.medical_services_outlined, color: Color(0xFF3E4946)), 
-            selectedIcon: const Icon(Icons.medical_services_rounded, color: Color(0xFF006A5E)), 
-            label: 'Catálogo'
+            icon: const Icon(
+              Icons.medical_services_outlined,
+              color: Color(0xFF3E4946),
+            ),
+            selectedIcon: const Icon(
+              Icons.medical_services_rounded,
+              color: Color(0xFF006A5E),
+            ),
+            label: 'Catalogo',
           ),
           NavigationDestination(
-            icon: const Icon(Icons.shopping_bag_outlined, color: Color(0xFF3E4946)), 
-            selectedIcon: const Icon(Icons.shopping_bag_rounded, color: Color(0xFF006A5E)), 
-            label: 'Carrito'
+            icon: const Icon(
+              Icons.shopping_bag_outlined,
+              color: Color(0xFF3E4946),
+            ),
+            selectedIcon: const Icon(
+              Icons.shopping_bag_rounded,
+              color: Color(0xFF006A5E),
+            ),
+            label: 'Carrito',
           ),
           NavigationDestination(
-            icon: const Icon(Icons.person_outline, color: Color(0xFF3E4946)), 
-            selectedIcon: const Icon(Icons.person_rounded, color: Color(0xFF006A5E)), 
-            label: 'Perfil'
+            icon: const Icon(Icons.person_outline, color: Color(0xFF3E4946)),
+            selectedIcon: const Icon(
+              Icons.person_rounded,
+              color: Color(0xFF006A5E),
+            ),
+            label: 'Perfil',
           ),
         ],
       ),
@@ -179,7 +209,9 @@ class _ProfileTabState extends State<_ProfileTab> {
   @override
   Widget build(BuildContext context) {
     if (_loading) {
-      return const Center(child: CircularProgressIndicator(color: Color(0xFF006A5E)));
+      return const Center(
+        child: CircularProgressIndicator(color: Color(0xFF006A5E)),
+      );
     }
 
     return Center(
@@ -191,7 +223,13 @@ class _ProfileTabState extends State<_ProfileTab> {
           decoration: BoxDecoration(
             color: Colors.white,
             borderRadius: BorderRadius.circular(24),
-            boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 24, offset: const Offset(0, 8))],
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.04),
+                blurRadius: 24,
+                offset: const Offset(0, 8),
+              ),
+            ],
             border: Border.all(color: const Color(0xFFF0F2F1)),
           ),
           child: Column(
@@ -206,7 +244,11 @@ class _ProfileTabState extends State<_ProfileTab> {
                 child: const CircleAvatar(
                   radius: 40,
                   backgroundColor: Color(0xFFF0F2F1),
-                  child: Icon(Icons.person_rounded, size: 45, color: Color(0xFF006A5E)),
+                  child: Icon(
+                    Icons.person_rounded,
+                    size: 45,
+                    color: Color(0xFF006A5E),
+                  ),
                 ),
               ),
               const SizedBox(height: 16),
@@ -229,7 +271,10 @@ class _ProfileTabState extends State<_ProfileTab> {
               ),
               const SizedBox(height: 12),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 6,
+                ),
                 decoration: BoxDecoration(
                   color: const Color(0xFFEAF8F4),
                   borderRadius: BorderRadius.circular(999),
@@ -250,15 +295,23 @@ class _ProfileTabState extends State<_ProfileTab> {
                 height: 50,
                 child: OutlinedButton.icon(
                   onPressed: _loggingOut ? null : _logout,
-                  icon: const Icon(Icons.logout_rounded, color: Color(0xFFBA1A1A)),
+                  icon: const Icon(
+                    Icons.logout_rounded,
+                    color: Color(0xFFBA1A1A),
+                  ),
                   style: OutlinedButton.styleFrom(
                     side: const BorderSide(color: Color(0xFFF0F2F1)),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
                     foregroundColor: const Color(0xFFBA1A1A),
                   ),
                   label: Text(
                     _loggingOut ? 'Cerrando sesión...' : 'Cerrar sesión',
-                    style: GoogleFonts.manrope(fontWeight: FontWeight.w700, fontSize: 15),
+                    style: GoogleFonts.manrope(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 15,
+                    ),
                   ),
                 ),
               ),
@@ -302,7 +355,10 @@ class _HomeOverviewTab extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 6,
+                ),
                 decoration: BoxDecoration(
                   color: Colors.white.withOpacity(0.2),
                   borderRadius: BorderRadius.circular(8),
@@ -310,12 +366,20 @@ class _HomeOverviewTab extends StatelessWidget {
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Icon(Icons.verified_rounded, color: Colors.white, size: 16),
+                    const Icon(
+                      Icons.verified_rounded,
+                      color: Colors.white,
+                      size: 16,
+                    ),
                     const SizedBox(width: 6),
                     Flexible(
                       child: Text(
                         'Cuenta Verificada',
-                        style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 11),
+                        style: GoogleFonts.inter(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w600,
+                          fontSize: 11,
+                        ),
                         overflow: TextOverflow.ellipsis,
                       ),
                     ),
@@ -344,9 +408,9 @@ class _HomeOverviewTab extends StatelessWidget {
             ],
           ),
         ),
-        
+
         const SizedBox(height: 32),
-        
+
         Text(
           'Accesos rápidos',
           style: GoogleFonts.manrope(
@@ -356,7 +420,7 @@ class _HomeOverviewTab extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 16),
-        
+
         // GRID DE TARJETAS (ESTILO DASHBOARD MODERN)
         Row(
           children: [
@@ -398,6 +462,26 @@ class _HomeOverviewTab extends StatelessWidget {
                 toneColor: const Color(0xFF6A1B9A),
                 backgroundTint: const Color(0xFFF6ECFF),
                 onTap: onOpenPayments,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        Row(
+          children: [
+            Expanded(
+              child: _QuickActionCard(
+                icon: Icons.medication_liquid_rounded,
+                label: 'Tratamientos',
+                toneColor: const Color(0xFF006A5E),
+                backgroundTint: const Color(0xFFEAF8F4),
+                onTap: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => const TreatmentsCatalogPage(),
+                    ),
+                  );
+                },
               ),
             ),
           ],
@@ -465,7 +549,11 @@ class _QuickActionCard extends StatelessWidget {
                     fontSize: 15,
                   ),
                 ),
-                Icon(Icons.chevron_right_rounded, color: const Color(0xFFBDC9C5), size: 20),
+                Icon(
+                  Icons.chevron_right_rounded,
+                  color: const Color(0xFFBDC9C5),
+                  size: 20,
+                ),
               ],
             ),
           ],
@@ -475,57 +563,3 @@ class _QuickActionCard extends StatelessWidget {
   }
 }
 
-class _PlaceholderTab extends StatelessWidget {
-  const _PlaceholderTab({
-    required this.title,
-    required this.subtitle,
-    required this.icon,
-  });
-
-  final String title;
-  final String subtitle;
-  final IconData icon;
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(28),
-        child: Container(
-          width: 420,
-          padding: const EdgeInsets.all(24),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: const Color(0x1ABDC9C5)),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(icon, size: 42, color: const Color(0xFF006A5E)),
-              const SizedBox(height: 12),
-              Text(
-                title,
-                style: GoogleFonts.manrope(
-                  fontSize: 26,
-                  fontWeight: FontWeight.w800,
-                  color: const Color(0xFF191C1C),
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                subtitle,
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                  color: Color(0xFF3E4946),
-                  fontSize: 14,
-                  height: 1.45,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}

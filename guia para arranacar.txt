@@ -228,3 +228,4 @@ docker compose exec backend python manage.py check
 ENTRENAR MODELO
 docker compose exec backend python manage.py tenant_command entrenar_modelo --schema=farmacia1
 docker compose exec backend python manage.py tenant_command entrenar_modelo --schema=farmacia2
+docker compose exec backend python manage.py seed_tratamiento_demo --schema farmacia1

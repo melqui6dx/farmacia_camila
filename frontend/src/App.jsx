@@ -22,6 +22,7 @@ const AdminBitacoraPage = lazy(() => import("./pages/admin/AdminBitacoraPage"));
 const AdminBackupsPage = lazy(() => import("./pages/admin/AdminBackupsPage"));
 const AdminPrediccionesPage = lazy(() => import("./pages/admin/AdminPrediccionesPage"));
 const AdminReportesPage = lazy(() => import("./pages/admin/AdminReportesPage"));
+const AdminTratamientosPage = lazy(() => import("./pages/admin/AdminTratamientosPage"));
 const ClientePerfilPage = lazy(() => import("./pages/ClientePerfilPage"));
 const LoginPage = lazy(() => import("./pages/auth/LoginPage"));
 const RegisterPage = lazy(() => import("./pages/auth/RegisterPage"));
@@ -76,6 +77,7 @@ function App() {
               <Route path="/admin/backups" element={<AdminBackupsPage />} />
               <Route path="/admin/predicciones" element={<AdminPrediccionesPage />} />
               <Route path="/admin/reportes" element={<AdminReportesPage />} />
+              <Route path="/admin/tratamientos" element={<AdminTratamientosPage />} />
               <Route path="/admin/suscripcion" element={<TenantSubscriptionPage />} />
               <Route path="/admin/global/tenants" element={<GlobalTenantsPage />} />
             </Route>
