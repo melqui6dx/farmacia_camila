@@ -18,6 +18,7 @@ const AdminProductosPage = lazy(() => import("./pages/admin/AdminProductosPage")
 const AdminLaboratariosPage = lazy(() => import("./pages/admin/AdminLaboratoriosPage"));
 const AdminCategoriasPage = lazy(() => import("./pages/admin/AdminCategoriasPage"));
 const AdminClientesPage = lazy(() => import("./pages/admin/AdminClientesPage"));
+const RecetasPage = lazy(() => import("./pages/admin/RecetasPage"));
 const AdminBitacoraPage = lazy(() => import("./pages/admin/AdminBitacoraPage"));
 const AdminBackupsPage = lazy(() => import("./pages/admin/AdminBackupsPage"));
 const AdminPrediccionesPage = lazy(() => import("./pages/admin/AdminPrediccionesPage"));
@@ -36,6 +37,7 @@ const RegisterTenantPage = lazy(() => import("./pages/saas/RegisterTenantPage"))
 const GlobalLoginPage = lazy(() => import("./pages/saas/GlobalLoginPage"));
 const TenantSubscriptionPage = lazy(() => import("./pages/admin/TenantSubscriptionPage"));
 const GlobalTenantsPage = lazy(() => import("./pages/admin/GlobalTenantsPage"));
+const SegmentacionClientesPage = lazy(() => import("./pages/admin/SegmentacionClientesPage"));
 
 function App() {
   const hasTenantSubdomain = Boolean(getTenantSubdomain());
@@ -73,6 +75,7 @@ function App() {
               <Route path="/admin/categorias" element={<AdminCategoriasPage />} />
               <Route path="/admin/laboratorios" element={<AdminLaboratariosPage />} />
               <Route path="/admin/clientes" element={<AdminClientesPage />} />
+              <Route path="/admin/recetas" element={<RecetasPage />} />
               <Route path="/admin/bitacora" element={<AdminBitacoraPage />} />
               <Route path="/admin/backups" element={<AdminBackupsPage />} />
               <Route path="/admin/predicciones" element={<AdminPrediccionesPage />} />
@@ -80,6 +83,7 @@ function App() {
               <Route path="/admin/tratamientos" element={<AdminTratamientosPage />} />
               <Route path="/admin/suscripcion" element={<TenantSubscriptionPage />} />
               <Route path="/admin/global/tenants" element={<GlobalTenantsPage />} />
+              <Route path="/admin/segmentacion-clientes" element={<SegmentacionClientesPage />} />
             </Route>
 
             {/* Punto de venta (POS) */}
