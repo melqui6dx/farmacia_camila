@@ -238,7 +238,7 @@ export default function AdminOpinionesPage() {
 
   if (!canView) {
     return (
-      <CRMLayout>
+      <CRMLayout activeSection="opiniones">
         <div className="p-8 text-center text-gray-500">
           No tienes permisos para ver las opiniones.
         </div>
@@ -247,7 +247,7 @@ export default function AdminOpinionesPage() {
   }
 
   return (
-    <CRMLayout>
+    <CRMLayout activeSection="opiniones">
       <div className="p-6 space-y-6">
         {/* Encabezado */}
         <div className="flex items-center justify-between">
