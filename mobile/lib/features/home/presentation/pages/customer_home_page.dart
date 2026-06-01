@@ -6,6 +6,7 @@ import '../../../payments/my_payments_page.dart';
 import '../../../points/presentation/pages/customer_points_page.dart';
 import '../../../points/data/customer_points_service.dart';
 import '../../../points/data/models/customer_points_models.dart';
+import '../../../opinions/presentation/widgets/opinion_cliente_sheet.dart';
 import '../../../treatments/presentation/pages/treatments_catalog_page.dart';
 import '../../../../core/auth/auth_session_manager.dart';
 import '../../../auth/data/models/auth_user.dart';
@@ -187,6 +188,17 @@ class _ProfileTabState extends State<_ProfileTab> {
   bool _loading = true;
   bool _loggingOut = false;
 
+  Future<void> _openOpiniones() async {
+    if (!mounted) return;
+
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => const OpinionClienteSheet(),
+    );
+  }
+
   @override
   void initState() {
     super.initState();
@@ -298,6 +310,32 @@ class _ProfileTabState extends State<_ProfileTab> {
                 ),
               ),
               const SizedBox(height: 32),
+              SizedBox(
+                width: double.infinity,
+                height: 50,
+                child: ElevatedButton.icon(
+                  onPressed: _openOpiniones,
+                  icon: const Icon(
+                    Icons.rate_review_rounded,
+                    size: 20,
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF006A5E),
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                  ),
+                  label: Text(
+                    'Dejar una opinion',
+                    style: GoogleFonts.manrope(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 15,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 10),
               SizedBox(
                 width: double.infinity,
                 height: 50,

@@ -236,3 +236,4 @@ Para todos las farmacias:
 
 Para farmacia1:
 `docker compose exec backend python manage.py seed_entradas_inventario_estados --schema farmacia1 --total 30`
+docker compose exec backend python manage.py seed_tratamiento_demo --schema farmacia1
