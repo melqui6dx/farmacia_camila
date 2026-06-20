@@ -36,4 +36,5 @@ export const adminSections = [
   { id: "roles-permisos", label: "Roles y permisos", icon: "settings", path: "/admin/roles-permisos", requiredPermission: "usuarios.gestionar" },
   { id: "backups", label: "Backups", icon: "save", path: "/admin/backups", requiredPermission: null },
   { id: "predicciones", label: "Predicciones", icon: "reports", path: "/admin/predicciones", requiredPermission: "predicciones.ver" },
+  { id: "pedidos", label: "Pedidos", icon: "truck", path: "/admin/pedidos", requiredPermission: "pedidos.ver" },
 ];

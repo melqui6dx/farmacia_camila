@@ -18,6 +18,7 @@ urlpatterns = [
     path("api/opiniones/", include("opiniones.urls")),
     path("api/publicidad/", include("publicidad.urls")),
     path("api/puntos/", include("puntos.urls")),
+    path("api/pedidos/", include("pedidos.urls")),
 ]
 
 if settings.DEBUG:

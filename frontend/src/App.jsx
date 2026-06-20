@@ -44,6 +44,7 @@ const SegmentacionClientesPage = lazy(() => import("./pages/admin/SegmentacionCl
 const AdminOpinionesPage = lazy(() => import("./pages/admin/AdminOpinionesPage"));
 const AdminPublicidadPage = lazy(() => import("./pages/admin/AdminPublicidadPage"));
 const AdminLimitesDispensacionPage = lazy(() => import("./pages/admin/AdminLimitesDispensacionPage"));
+const AdminPedidosPage = lazy(() => import("./pages/admin/AdminPedidosPage"));
 
 function App() {
   const hasTenantSubdomain = Boolean(getTenantSubdomain());
@@ -96,6 +97,7 @@ function App() {
               <Route path="/admin/opiniones" element={<AdminOpinionesPage />} />
               <Route path="/admin/publicidad" element={<AdminPublicidadPage />} />
               <Route path="/admin/limites-dispensacion" element={<AdminLimitesDispensacionPage />} />
+              <Route path="/admin/pedidos" element={<AdminPedidosPage />} />
             </Route>
 
             {/* Punto de venta (POS) */}
