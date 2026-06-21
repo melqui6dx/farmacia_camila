@@ -45,6 +45,10 @@ const AdminOpinionesPage = lazy(() => import("./pages/admin/AdminOpinionesPage")
 const AdminPublicidadPage = lazy(() => import("./pages/admin/AdminPublicidadPage"));
 const AdminLimitesDispensacionPage = lazy(() => import("./pages/admin/AdminLimitesDispensacionPage"));
 const AdminPedidosPage = lazy(() => import("./pages/admin/AdminPedidosPage"));
+const AdminKpisPage = lazy(() => import("./pages/admin/AdminKpisPage"));
+const GlobalOverviewPage = lazy(() => import("./pages/admin/GlobalOverviewPage"));
+const GlobalSuscripcionesPage = lazy(() => import("./pages/admin/GlobalSuscripcionesPage"));
+const GlobalPlanesPage = lazy(() => import("./pages/admin/GlobalPlanesPage"));
 
 function App() {
   const hasTenantSubdomain = Boolean(getTenantSubdomain());
@@ -92,7 +96,12 @@ function App() {
               <Route path="/admin/reportes" element={<AdminReportesPage />} />
               <Route path="/admin/tratamientos" element={<AdminTratamientosPage />} />
               <Route path="/admin/suscripcion" element={<TenantSubscriptionPage />} />
+              <Route path="/admin/kpis" element={<AdminKpisPage />} />
+              <Route path="/admin/global" element={<Navigate to="/admin/global/overview" replace />} />
+              <Route path="/admin/global/overview" element={<GlobalOverviewPage />} />
               <Route path="/admin/global/tenants" element={<GlobalTenantsPage />} />
+              <Route path="/admin/global/suscripciones" element={<GlobalSuscripcionesPage />} />
+              <Route path="/admin/global/planes" element={<GlobalPlanesPage />} />
               <Route path="/admin/segmentacion-clientes" element={<SegmentacionClientesPage />} />
               <Route path="/admin/opiniones" element={<AdminOpinionesPage />} />
               <Route path="/admin/publicidad" element={<AdminPublicidadPage />} />
